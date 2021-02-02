@@ -11,7 +11,7 @@ import re
 import urllib.request
 from typing import Callable, Union, BinaryIO, Optional, Mapping, List, Set, Tuple
 
-from .utils import arpabet_to_ipa, data_directory
+from paris_forced_aligner.utils import arpabet_to_ipa, data_directory, download_data_file
 
 class OutOfVocabularyException(Exception):
     """Raise for my specific kind of exception"""
@@ -58,9 +58,9 @@ class LibrispeechFile(AudioFile):
 
     lexicon_path = os.path.join(data_directory, 'librispeech-lexicon.txt')
     if not os.path.exists(lexicon_path):
-        urllib.request.urlretrieve('https://www.openslr.org/resources/11/librispeech-lexicon.txt', lexicon_path)
+        download_data_file('https://www.openslr.org/resources/11/librispeech-lexicon.txt', lexicon_path)
 
-    with open("../data/librispeech-lexicon.txt") as f:
+    with open(lexicon_path) as f:
         for line in f:
             word, pronunciation = re.split(r'\s+', line.strip(), maxsplit=1)
             lexicon[word] = pronunciation.split(' ')

@@ -5,7 +5,7 @@ from functools import partial
 
 from torch.multiprocessing import Pool, cpu_count
 
-from .audio_data import LibrispeechFile, AudioFile, OutOfVocabularyException
+from paris_forced_aligner.audio_data import LibrispeechFile, AudioFile, OutOfVocabularyException
 
 class CorpusClass():
     def __init__(self, corpus_path: str):
