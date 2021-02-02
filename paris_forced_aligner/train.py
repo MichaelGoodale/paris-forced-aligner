@@ -1,8 +1,8 @@
 import os
 
-from corpus import LibrispeechCorpus, CorpusClass
-from audio_data import LibrispeechFile
-from model import PhonemeDetector
+from .corpus import LibrispeechCorpus, CorpusClass
+from .audio_data import LibrispeechFile
+from .model import PhonemeDetector
 
 import torch
 from torch.nn import CTCLoss, CrossEntropyLoss

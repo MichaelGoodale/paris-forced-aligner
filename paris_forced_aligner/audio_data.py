@@ -11,7 +11,7 @@ import re
 import urllib.request
 from typing import Callable, Union, BinaryIO, Optional, Mapping, List, Set, Tuple
 
-from utils import arpabet_to_ipa, data_directory
+from .utils import arpabet_to_ipa, data_directory
 
 class OutOfVocabularyException(Exception):
     """Raise for my specific kind of exception"""

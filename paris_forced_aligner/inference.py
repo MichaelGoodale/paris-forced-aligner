@@ -1,8 +1,8 @@
 import torch
 
-from model import PhonemeDetector
-from audio_data import AudioFile
-from phonological import Utterance, Phone, Word, Silence
+from .model import PhonemeDetector
+from .audio_data import AudioFile
+from .phonological import Utterance, Phone, Word, Silence
 
 class ForceAligner:
 
