@@ -1,19 +1,12 @@
-import time
+import os
 
-from corpus import LibrispeechCorpus
+from corpus import LibrispeechCorpus, CorpusClass
 from audio_data import LibrispeechFile
 from model import PhonemeDetector
 
 import torch
 from torch.nn import CTCLoss, CrossEntropyLoss
 from torch.optim.lr_scheduler import StepLR
-
-model = PhonemeDetector('../wav2vec2_models/wav2vec_small.pt', LibrispeechFile.vocab_size())
-model.load_state_dict(torch.load('models/final_output.pt'))
-model.train()
-model.freeze_encoder()
-ctc_loss_fn = CTCLoss()
-cross_entropy_fn = CrossEntropyLoss()
 
 def get_cross_entropy_label(X):
     '''Ensure to pass detached X'''
@@ -41,44 +34,68 @@ def get_cross_entropy_label(X):
 def self_framewise_loss(X):
     return cross_entropy_fn(X.squeeze(), get_cross_entropy_label(X.detach().squeeze()))
 
-optimizer = torch.optim.Adam(model.parameters(), lr=5e-5)
+def train(model: PhonemeDetector, 
+        corpus: CorpusClass=LibrispeechCorpus('../data/librispeech-clean-100.tar.gz'),
+        output_directory:str = "models",
+        accumulate_steps: int = 20,
+        n_steps: int = 30000,
+        unfreeze_after:int = 10000,
+        zero_lambda_until:int = 20000,
+        lambda_param: float = 0.1,
+        output_model_every:int = 1000):
+    ''' Example usage:
 
-LAMBDA = 0.1
-losses = []
-unfrozen = True#False 
+        model = PhonemeDetector('../wav2vec2_models/wav2vec_small.pt', LibrispeechFile.vocab_size())
+        model.load_state_dict(torch.load('models/final_output.pt'))
+        train(model)
+    '''
+    os.makedirs(output_directory, exist_ok=True)
 
-start = time.time()
-with open("log.txt", 'w') as f:
-    i = 0
-    while i < 2000:
-        for audio_file in LibrispeechCorpus('../data/librispeech-clean-100.tar.gz'):
-            X = model(audio_file.features)
-            ctc_loss = ctc_loss_fn(X, audio_file.tensor_transcription.unsqueeze(0), (X.shape[0],), (audio_file.tensor_transcription.shape[0], )) 
-            cross_loss = self_framewise_loss(X)
+    model.train()
+    model.freeze_encoder()
 
-            loss = (1-LAMBDA)*ctc_loss + LAMBDA*cross_loss
-            loss.backward()
-            losses.append(loss.item())
+    ctc_loss_fn = CTCLoss()
+    cross_entropy_fn = CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    lr_scheduler = StepLR(optimizer, 5000, 0.5)
 
-            if i % 20 == 0:
-                optimizer.step()
-                optimizer.zero_grad()
-                print(torch.argmax(X, dim=-1).squeeze().tolist())
-                print(i, sum(losses)/len(losses))
-                f.write(f'{i} {sum(losses)/len(losses)}\n')
-                losses = []
+    losses = []
 
-            if i >= 1000 and not unfrozen:
-                model.unfreeze_wav2vec()
-                model.freeze_encoder()
-                unfrozen = True
+    unfrozen = False
+    with open(f"{output_directory}/log.txt", 'w') as f:
+        i = 0
+        while i < n_steps:
+            for audio_file in corpus:
+                X = model(audio_file.wav)
+                ctc_loss = ctc_loss_fn(X, audio_file.tensor_transcription.unsqueeze(0), (X.shape[0],), (audio_file.tensor_transcription.shape[0], )) 
 
-            if i > 0 and i % 500 == 0:
-                torch.save(model.state_dict(), f'models/multi_loss{2000+i}_output.pt')
+                if i > zero_lambda_until:
+                    cross_loss = self_framewise_loss(X)
+                    loss = (1-lambda_param)*ctc_loss + lambda_param*cross_loss
+                else:
+                    loss = ctc_loss
 
-            i += 1
+                loss.backward()
+                losses.append(loss.item())
 
-            if i > 2000: 
-                break
+                if i % accumulate_steps == 0:
+                    optimizer.step()
+                    optimizer.zero_grad()
+                    print(i, sum(losses)/len(losses))
+                    f.write(f'{i} {sum(losses)/len(losses)}\n')
+                    losses = []
 
-torch.save(model.state_dict(), 'models/final_output.pt')
+                if not unfrozen and i >= unfreeze_after:
+                    model.unfreeze_wav2vec()
+                    model.freeze_encoder()
+                    unfrozen = True
+
+                if i > 0 and i % output_model_every == 0:
+                    torch.save(model.state_dict(), f"{output_directory}/{i}_model.pt")
+
+                i += 1
+                lr_scheduler.step()
+                if i > n_steps: 
+                    break
+
+    torch.save(model.state_dict(), f'{output_directory}/final_output.pt')
