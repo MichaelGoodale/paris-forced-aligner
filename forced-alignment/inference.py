@@ -3,15 +3,15 @@ import textgrid
 
 from model import PhonemeDetector
 from audio_data import AudioFile
+from phonological import Utterance, Phone, Word, Silence
 
 class ForceAligner:
 
-    def __init__(self, filepath: str, wav2vec_file: str, vocab_size: int, n_beams: int = 50, allow_deleted_phones: bool = False):
+    def __init__(self, filepath: str, wav2vec_file: str, vocab_size: int, n_beams: int = 50):
         model = PhonemeDetector(wav2vec_file, vocab_size)
         model.load_state_dict(torch.load(filepath))
         self.model = model
         self.BEAMS = n_beams
-        self.allow_deleted_phones = allow_deleted_phones
 
 
     def align_file(self, audio: AudioFile):
@@ -29,10 +29,6 @@ class ForceAligner:
                     p_next_state = X[t, 0, transcription[1]].item()
                     candidates.append((score + p_next_state, transcription[1:], states + [transcription[1].item()]))
 
-                if self.allow_deleted_phones and len(transcription) > 2:
-                    p_next_state = X[t, 0, transcription[2]].item()
-                    candidates.append((score + p_next_state, transcription[2:], states + [transcription[2].item()]))
-
             beams = sorted(candidates, reverse=True, key=lambda x: x[0])[:5]
 
         _, _, states = beams[0]
@@ -44,22 +40,37 @@ class ForceAligner:
                 inference.append((audio.index_to_phone(x), self.model.get_idx_in_sample(t)))
             old_x = x
 
-        inference_return = []
-        for i, (phone, time) in enumerate(inference):
+        word_idx = 0
+        utterance = []
+        current_word = []
+
+        for i, (phone, start) in enumerate(inference):
             if i < len(inference) - 1:
-                end_time = inference[i+1][1]
+                end = inference[i+1][1]
             else:
-                end_time = audio.wav.shape[-1]
-            inference_return.append((phone, time, end_time))
+                end = audio.wav.shape[-1]
 
-        return inference_return
+            if phone == "<SIL>":
+                utterance.append(Silence(start, end))
+                if current_word != []:
+                    utterance.append(Word(current_word, audio.words[word_idx]))
+                    word_idx += 1
+                    current_word = []
+            else:
+                current_word.append(Phone(phone, start, end))
 
-    def output_textgrid(self, inference, output_file):
+        return Utterance(utterance)
+
+    def output_textgrid(self, utterance, output_file):
         tg = textgrid.TextGrid()
+        words = textgrid.IntervalTier()
         phones = textgrid.IntervalTier()
-        for phone, start_time, end_time in inference:
-            phones.add(start_time / 16000, end_time / 16000, phone)
+        for word in utterance.words:
+            words.add(word.start / 16000, word.end / 16000, word.label)
+            for phone in word.phones:
+                phones.add(phone.start / 16000, phone.end/ 16000, phone.label)
 
+        tg.append(words)
         tg.append(phones)
         with open(output_file, 'w') as f:
             tg.write(f)

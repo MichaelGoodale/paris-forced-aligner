@@ -1,21 +1,16 @@
 from dataclasses import dataclass
-from typing import List
-
-@dataclass
-class Phoneme:
-    phoneme_label: str
-    phoneme_ipa: str
+from typing import List, Union
 
 @dataclass
 class Phone:
-    phoneme: Phoneme
+    label: str
     start: int
     end: int
 
 @dataclass
 class Word:
     phones: List[Phone]
-    word_label: str
+    label: str
 
     @property
     def start(self):
@@ -25,23 +20,24 @@ class Word:
     def end(self):
         return self.phones[-1].end
 
+@dataclass
 class Silence:
     start: int
     end: int
 
 
+@dataclass
 class Utterance:
-    def __init__(data: List[Union[Word, Silence]]):
-        self.data = data
+    data: List[Union[Word, Silence]]
 
     @property
-    def words:
+    def words(self):
         return list(filter(lambda x: isinstance(x, Word), self.data))
 
     @property
-    def start:
+    def start(self):
         return self.data[0].start
 
     @property
-    def end:
+    def end(self):
         return self.data[-1].end

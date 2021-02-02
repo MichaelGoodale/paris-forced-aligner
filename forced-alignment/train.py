@@ -56,8 +56,8 @@ def train(model: PhonemeDetector,
 
     ctc_loss_fn = CTCLoss()
     cross_entropy_fn = CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
-    lr_scheduler = StepLR(optimizer, 5000, 0.5)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    lr_scheduler = StepLR(optimizer, 8000, 0.1)
 
     losses = []
 
