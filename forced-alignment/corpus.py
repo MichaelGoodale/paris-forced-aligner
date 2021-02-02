@@ -1,9 +1,9 @@
 import tarfile
 import random
-
-from torch.multiprocessing import Pool, cpu_count
 from typing import List
 from functools import partial 
+
+from torch.multiprocessing import Pool, cpu_count
 
 from audio_data import LibrispeechFile, AudioFile, OutOfVocabularyException
 

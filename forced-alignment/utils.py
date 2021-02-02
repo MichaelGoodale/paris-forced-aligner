@@ -1,3 +1,9 @@
+import os
+from appdirs import user_data_dir
+
+data_directory = user_data_dir('paris-forced-aligner', 'mgoodale')
+os.makedirs(data_directory, exist_ok=True)
+
 arpabet_to_ipa = {
 "AA": "ɑ",
 "AE": "æ",

@@ -6,10 +6,12 @@ torchaudio.set_audio_backend("soundfile")
 from torchaudio.transforms import MFCC
 from torch import Tensor
 
+import os
 import re
+import urllib.request
 from typing import Callable, Union, BinaryIO, Optional, Mapping, List, Set, Tuple
 
-from audio_utils import arpabet_to_ipa
+from utils import arpabet_to_ipa, data_directory
 
 class OutOfVocabularyException(Exception):
     """Raise for my specific kind of exception"""
@@ -53,6 +55,10 @@ class LibrispeechFile(AudioFile):
     lexicon: Mapping[str, List[str]] = {}
     phonemic_inventory: Set[str] = set(['<SIL>'])
     phone_to_phoneme: Mapping[str, str] = arpabet_to_ipa
+
+    lexicon_path = os.path.join(data_directory, 'librispeech-lexicon.txt')
+    if not os.path.exists(lexicon_path):
+        urllib.request.urlretrieve('https://www.openslr.org/resources/11/librispeech-lexicon.txt', lexicon_path)
 
     with open("../data/librispeech-lexicon.txt") as f:
         for line in f:
