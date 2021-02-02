@@ -4,7 +4,7 @@ from paris_forced_aligner.model import PhonemeDetector
 from paris_forced_aligner.audio_data import AudioFile
 from paris_forced_aligner.phonological import Utterance, Phone, Word, Silence
 
-class ForceAligner:
+class ForcedAligner:
 
     def __init__(self, filepath: str, wav2vec_file: str, vocab_size: int, n_beams: int = 50):
         model = PhonemeDetector(wav2vec_file, vocab_size)

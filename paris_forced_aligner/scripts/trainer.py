@@ -14,8 +14,8 @@ def train_model():
     parser.add_argument("--corpus_path", type=str, required=True)
     parser.add_argument("--corpus_type", default="librispeech", choices=['librispeech'])
     parser.add_argument("--n_proc", type=int, default=1)
-    args = parser.parse_args()
 
+    args = parser.parse_args()
     wav2vec_model_path = process_download_args(args)
 
     if args.corpus_type == 'librispeech':
