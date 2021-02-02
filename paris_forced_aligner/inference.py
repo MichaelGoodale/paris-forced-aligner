@@ -17,18 +17,21 @@ class ForcedAligner:
         X = self.model(audio.wav)
         y = audio.tensor_transcription
 
-        beams = [(0, y, []) for _ in range(self.BEAMS)]
+        beams = [(0, y, [])]
+
         for t in range(X.shape[0]):
-            candidates = []
+            #Kinda funky candidates dict to prevent repeat paths based on prob
+            #Shouldn't technically be based only on prob but likelihood is small of collisions
+            candidates = {}
             for score, transcription, states in beams:
                 p_current_state = X[t, 0, transcription[0]].item()
-                candidates.append((score + p_current_state, transcription, states + [transcription[0].item()]))
+                candidates[score + p_current_state] = (transcription, states + [transcription[0].item()])
 
                 if len(transcription) > 1:
                     p_next_state = X[t, 0, transcription[1]].item()
-                    candidates.append((score + p_next_state, transcription[1:], states + [transcription[1].item()]))
+                    candidates[score + p_next_state] = (transcription[1:], states + [transcription[1].item()])
 
-            beams = sorted(candidates, reverse=True, key=lambda x: x[0])[:5]
+            beams = [(p, *candidates[p]) for p in sorted(candidates.keys(), reverse=True)[:self.BEAMS]]
 
         _, _, states = beams[0]
 

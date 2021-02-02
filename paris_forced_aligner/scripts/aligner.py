@@ -27,7 +27,7 @@ def align():
     
     utterance = forced_aligner.align_file(audio_file)
 
-    output_file = f'{audio_file.rsplit('.', 1)[0]].{args.save_as}'
+    output_file = f'{args.audio_file.rsplit(".", 1)[0]}.{args.save_as}'
     if args.save_as == 'textgrid':
         utterance.save_textgrid(output_file)
     elif args.save_as == 'csv':
