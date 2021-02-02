@@ -35,7 +35,7 @@ def self_framewise_loss(X):
     return cross_entropy_fn(X.squeeze(), get_cross_entropy_label(X.detach().squeeze()))
 
 def train(model: PhonemeDetector, 
-        corpus: CorpusClass=LibrispeechCorpus('../data/librispeech-clean-100.tar.gz'),
+        corpus: CorpusClass,
         output_directory:str = "models",
         accumulate_steps: int = 20,
         n_steps: int = 30000,
