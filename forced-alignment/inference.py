@@ -15,22 +15,37 @@ class ForceAligner:
         model = PhonemeDetector(wav2vec_file, vocab_size)
         model.load_state_dict(torch.load(filepath))
         self.model = model
+        self.BEAMS = 5
 
 
     def align_file(self, audio: AudioFile):
         X = self.model(audio.wav)
         y = audio.tensor_transcription
-        inference = [('<SIL>', 0)]
 
+        beams = [(0, y, []) for _ in range(self.BEAMS)]
         for t in range(X.shape[0]):
-            if len(y) == 1:
-                break
+            candidates = []
+            for score, transcription, states in beams:
+                p_current_state = X[t, 0, transcription[0]].item()
+                candidates.append((score + p_current_state, transcription, states + [transcription[0].item()]))
 
-            p_current_state = X[t, 0, y[0]]
-            p_next_state = X[t, 0, y[1]]
-            if p_next_state > p_current_state:
-                inference.append((audio.index_to_phone(y[1].item()), self.model.get_idx_in_sample(t)))
-                y = y[1:]
+                if len(transcription) > 1:
+                    p_next_state = X[t, 0, transcription[1]].item()
+                    candidates.append((score + p_next_state, transcription[1:], states + [transcription[1].item()]))
+
+                if len(transcription) > 2:
+                    p_next_state = X[t, 0, transcription[2]].item()
+                    candidates.append((score + p_next_state, transcription[2:], states + [transcription[2].item()]))
+            beams = sorted(candidates, reverse=True, key=lambda x: x[0])[:5]
+
+        _, _, states = beams[0]
+
+        inference = []
+        old_x = None
+        for t, x in enumerate(states):
+            if old_x != x:
+                inference.append((audio.index_to_phone(x), self.model.get_idx_in_sample(t)))
+            old_x = x
 
         inference_return = []
         for i, (phone, time) in enumerate(inference):
@@ -46,7 +61,6 @@ class ForceAligner:
         tg = textgrid.TextGrid()
         phones = textgrid.IntervalTier()
         for phone, start_time, end_time in inference:
-            print(start_time, end_time)
             phones.add(start_time / 16000, end_time / 16000, phone)
 
         tg.append(phones)
