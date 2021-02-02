@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import List, Union
 
 import textgrid
+import csv
 
 @dataclass
 class Phone:
@@ -44,7 +45,19 @@ class Utterance:
     def end(self):
         return self.data[-1].end
 
-    def output_textgrid(self, output_file: str):
+    def save_csv(self, output_file: str, in_seconds: bool = False):
+        with open(output_file, 'w') as f:
+            writer = csv.DictWriter(f, fieldnames = ['phone', 'word', 'start', 'end'])
+            for word in self.words:
+                for phone in word.phones:
+                    if in_seconds:
+                        writer.writerow({'phone': phone.label, 'word': word.label,
+                            'start': phone.start / 16000, 'end': phone.end/ 16000})
+                    else:
+                        writer.writerow({'phone': phone.label, 'word': word.label,
+                            'start': phone.start, 'end': phone.end})
+
+    def save_textgrid(self, output_file: str):
         tg = textgrid.TextGrid()
         words = textgrid.IntervalTier()
         phones = textgrid.IntervalTier()
