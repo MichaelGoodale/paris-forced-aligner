@@ -11,5 +11,11 @@ setuptools.setup(name='paris_forced_aligner',
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Operating System :: OS Independent",
       ],
+      entry_points={
+      'console_scripts': [
+            'paris_forced_aligner = paris_forced_aligner.scripts.aligner:align',
+            'paris_forced_trainer = paris_forced_aligner.scripts.trainer:train_model'
+      ],
+      },
       packages=setuptools.find_packages(),
       python_requires='>=3.7')
