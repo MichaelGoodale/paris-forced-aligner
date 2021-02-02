@@ -1,5 +1,4 @@
 import torch
-import textgrid
 
 from model import PhonemeDetector
 from audio_data import AudioFile
@@ -61,16 +60,3 @@ class ForceAligner:
 
         return Utterance(utterance)
 
-    def output_textgrid(self, utterance, output_file):
-        tg = textgrid.TextGrid()
-        words = textgrid.IntervalTier()
-        phones = textgrid.IntervalTier()
-        for word in utterance.words:
-            words.add(word.start / 16000, word.end / 16000, word.label)
-            for phone in word.phones:
-                phones.add(phone.start / 16000, phone.end/ 16000, phone.label)
-
-        tg.append(words)
-        tg.append(phones)
-        with open(output_file, 'w') as f:
-            tg.write(f)
