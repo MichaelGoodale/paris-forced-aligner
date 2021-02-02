@@ -48,6 +48,7 @@ class LibrispeechFile(AudioFile):
                 phonemic_inventory.add(phone)
 
     phonemic_mapping: Mapping[str, int] = {phone: i+1 for i, phone in enumerate(sorted(phonemic_inventory))}
+    index_mapping: Mapping[int, str] = {v:k for k, v in phonemic_mapping.items()}
 
     def vocab_size():
         return len(LibrispeechFile.phonemic_inventory) + 1
@@ -64,3 +65,6 @@ class LibrispeechFile(AudioFile):
 
         new_transcription_tensor = torch.tensor([LibrispeechFile.phonemic_mapping[x] for x in new_transcription])
         return new_transcription, new_transcription_tensor
+
+    def index_to_phone(self, idx: int) -> str:
+        return LibrispeechFile.index_mapping[idx]

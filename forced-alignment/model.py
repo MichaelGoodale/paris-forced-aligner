@@ -11,7 +11,7 @@ def load_wav2vec_model(filepath):
 
 
 class PhonemeDetector(nn.Module):
-    wav2vec_to_16khz = 320.0
+    wav2vec_to_16khz = 320
 
     def __init__(self, filepath, vocab_size):
         super().__init__()
@@ -23,6 +23,9 @@ class PhonemeDetector(nn.Module):
         c = c['x'].transpose(0,1)
         c = self.fc(c)
         return F.log_softmax(c, dim=-1)
+
+    def get_idx_in_sample(self, idx: int) -> int:
+        return PhonemeDetector.wav2vec_to_16khz * idx 
     
     def freeze_encoder(self):
         for name, param in self.wav2vec.named_parameters():
