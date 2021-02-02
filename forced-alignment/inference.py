@@ -1,21 +1,17 @@
 import torch
-import torchaudio
 import textgrid
-from torchaudio.transforms import Spectrogram
-
-import matplotlib.pyplot as plt
 
 from model import PhonemeDetector
-from audio_data import AudioFile, LibrispeechFile
-from corpus import LibrispeechCorpus
+from audio_data import AudioFile
 
 class ForceAligner:
 
-    def __init__(self, filepath: str, wav2vec_file: str, vocab_size: int):
+    def __init__(self, filepath: str, wav2vec_file: str, vocab_size: int, n_beams: int = 50, allow_deleted_phones: bool = False):
         model = PhonemeDetector(wav2vec_file, vocab_size)
         model.load_state_dict(torch.load(filepath))
         self.model = model
-        self.BEAMS = 5
+        self.BEAMS = n_beams
+        self.allow_deleted_phones = allow_deleted_phones
 
 
     def align_file(self, audio: AudioFile):
@@ -33,9 +29,10 @@ class ForceAligner:
                     p_next_state = X[t, 0, transcription[1]].item()
                     candidates.append((score + p_next_state, transcription[1:], states + [transcription[1].item()]))
 
-                if len(transcription) > 2:
+                if self.allow_deleted_phones and len(transcription) > 2:
                     p_next_state = X[t, 0, transcription[2]].item()
                     candidates.append((score + p_next_state, transcription[2:], states + [transcription[2].item()]))
+
             beams = sorted(candidates, reverse=True, key=lambda x: x[0])[:5]
 
         _, _, states = beams[0]
@@ -66,21 +63,3 @@ class ForceAligner:
         tg.append(phones)
         with open(output_file, 'w') as f:
             tg.write(f)
-
-    def plot_specgram(inference):
-        spec = Spectrogram()
-        specgram = spec(audio.wav)
-        plt.imshow(specgram.log2()[0,:,:].numpy(), cmap='gray')
-        for phone, start_time, end_time in inference:
-            plt.axvline(x=start_time / 200)
-            plt.text(((end_time - start_time) / 2 + start_time) / 200, 0.5, phone)
-        plt.show()
-
-
-
-f = ForceAligner('models/final_output.pt', '../wav2vec2_models/wav2vec_small.pt', LibrispeechFile.vocab_size())
-for audio_file in LibrispeechCorpus('../data/librispeech-clean-100.tar.gz', 1):
-    f.output_textgrid(f.align_file(audio_file), 'file.textgrid')
-    torchaudio.save("file.wav", audio_file.wav, 16000)
-    break
-
