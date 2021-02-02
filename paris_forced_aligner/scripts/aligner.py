@@ -4,14 +4,6 @@ from paris_forced_aligner.utils import download_data_file, data_directory, proce
 from paris_forced_aligner.inference import ForceAligner
 from paris_forced_aligner.corpus import LibrispeechCorpus
 from paris_forced_aligner.audio_data import LibrispeechFile
-import torchaudio 
-
-
-for audio_file in LibrispeechCorpus('../data/librispeech-clean-100.tar.gz', 1):
-    utt.save_textgrid('file.textgrid')
-    utt.save_csv('file.csv')
-    torchaudio.save("file.wav", audio_file.wav, 16000)
-    break
 
 def align():
     parser = argparse.ArgumentParser(description='Train forced aligner')
