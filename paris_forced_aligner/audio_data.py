@@ -3,7 +3,7 @@ import torchaudio
 torchaudio.USE_SOUNDFILE_LEGACY_INTERFACE = False
 torchaudio.set_audio_backend("soundfile")
 
-from torchaudio.transforms import MFCC
+from torchaudio.transforms import MFCC, Resample
 from torch import Tensor
 
 import os
@@ -38,6 +38,12 @@ class AudioFile:
             self.wav, sr = torchaudio.load(fileobj)
         else:
             self.wav, sr = torchaudio.load(self.filename)
+
+        if self.wav.shape[0] != 1:
+            self.wav = torch.mean(self.wav, dim=0).unsqueeze(0)
+
+        if sr != 16000:
+            self.wav = Resample(sr, 16000)(self.wav)
 
     def get_phone_transcription(self, transcription: str) -> Tuple[List[str], Tensor]:
         raise NotImplementedError("get_phone_transcription is not implemented in base class")

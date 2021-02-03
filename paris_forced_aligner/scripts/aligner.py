@@ -22,7 +22,6 @@ def align():
     if args.vocab == 'librispeech':
         vocab_size = LibrispeechFile.vocab_size()
         audio_file = LibrispeechFile(args.audio_file, args.transcription)
-
     forced_aligner = ForcedAligner(args.checkpoint, wav2vec_model_path, vocab_size)
     
     utterance = forced_aligner.align_file(audio_file)
