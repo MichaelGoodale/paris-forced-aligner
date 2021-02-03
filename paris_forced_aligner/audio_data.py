@@ -19,11 +19,12 @@ class OutOfVocabularyException(Exception):
 class AudioFile:
     def __init__(self, filename:str, transcription: str,
             fileobj: Optional[BinaryIO] = None,
+            wavobj: Optional[Tuple[Tensor, int]] = None,
             extract_features: bool = False,
             feature_extractor: Callable[[Tensor], Tensor] = MFCC()):
 
         self.filename = filename
-        self.load_audio(fileobj)
+        self.load_audio(fileobj, wavobj)
 
         if extract_features:
             self.features = feature_extractor(self.wav)
@@ -33,9 +34,11 @@ class AudioFile:
         self.transcription, self.tensor_transcription = self.get_phone_transcription(transcription)
         self.words = self.get_word_transcription(transcription)
 
-    def load_audio(self, fileobj: Optional[BinaryIO] = None):
+    def load_audio(self, fileobj: Optional[BinaryIO] = None, wavobj = None):
         if fileobj is not None:
             self.wav, sr = torchaudio.load(fileobj)
+        elif wavobj is not None:
+            self.wav, sr = wavobj
         else:
             self.wav, sr = torchaudio.load(self.filename)
 
