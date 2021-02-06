@@ -10,12 +10,13 @@ import webvtt
 import torchaudio
 import tempfile
 
-from paris_forced_aligner.audio_data import LibrispeechFile, AudioFile, OutOfVocabularyException
+from paris_forced_aligner.audio_data import LibrispeechDictionary, AudioFile, OutOfVocabularyException, PronunciationDictionary
 
 
 class CorpusClass():
     def __init__(self, corpus_path: str):
         self.corpus_path: str = corpus_path
+        self.pronunciation_dictionary = pronunciation_dictionary
 
     def extract_files(self):
         raise NotImplementedError("extract_files must be implemented in a base class")
@@ -25,8 +26,8 @@ class CorpusClass():
 
 class YoutubeCorpus(CorpusClass):
 
-    def __init__(self, corpus_path: str, language: str = 'en', audio_directory: Optional[str] = None):
-        super().__init__(corpus_path)
+    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, language: str = 'en', audio_directory: Optional[str] = None):
+        super().__init__(corpus_path, pronunciation_dictionary)
         self.youtube_files = []
         if audio_directory is None:
             self._temp_dir = tempfile.TemporaryDirectory()
@@ -67,7 +68,7 @@ class YoutubeCorpus(CorpusClass):
                 transcription = cap_string.text.strip().upper()
                 start = int(cap_time.start_in_seconds * sr)
                 end = int(cap_time.end_in_seconds * sr)
-                yield LibrispeechFile('youtube', transcription, wavobj=(wav[:, start:end], sr))
+                yield AudioFile('youtube', transcription, self.pronunciation_dictionary, wavobj=(wav[:, start:end], sr))
 
     def cleanup(self):
         self._temp_dir.cleanup()
@@ -75,7 +76,7 @@ class YoutubeCorpus(CorpusClass):
 
 class LibrispeechCorpus(CorpusClass):
     def __init__(self, corpus_path: str, n_proc: int = cpu_count()):
-        super().__init__(corpus_path)
+        super().__init__(corpus_path, LibrispeechDictionary())
         self.n_proc = n_proc
 
     def extract_files(self):
@@ -94,7 +95,7 @@ class LibrispeechCorpus(CorpusClass):
                             filename, transcription = line.strip().split(' ', 1)
                             filename = LibrispeechCorpus._get_flac_filepath(directory_path, filename)
                             try:
-                                yield LibrispeechFile(filename, transcription, fileobj=tar_file.extractfile(filename))
+                                yield AudioFile(filename, transcription, self.pronunciation_dictionary, fileobj=tar_file.extractfile(filename))
                             except OutOfVocabularyException:
                                 pass
 
@@ -120,7 +121,7 @@ class LibrispeechCorpus(CorpusClass):
                     filename, transcription = line.strip().split(' ', 1)
                     filename = LibrispeechCorpus._get_flac_filepath(directory_path, filename)
                     try:
-                        audio = LibrispeechFile(filename, transcription, fileobj=tar_file.extractfile(filename))
+                        audio = AudioFile(filename, transcription, self.pronunciation_dictionary, fileobj=tar_file.extractfile(filename))
                         returns.append(audio)
                     except OutOfVocabularyException:
                         pass

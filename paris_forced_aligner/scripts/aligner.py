@@ -4,7 +4,7 @@ from paris_forced_aligner.utils import download_data_file, data_directory, proce
 
 from paris_forced_aligner.inference import ForcedAligner
 from paris_forced_aligner.corpus import LibrispeechCorpus
-from paris_forced_aligner.audio_data import LibrispeechFile
+from paris_forced_aligner.audio_data import AudioFile, LibrispeechDictionary
 
 def read_file_list(path):
     files = []
@@ -49,13 +49,14 @@ def align():
         raise RuntimeError("You must provide a file with transcriptions with --transcripts for --input_files")
 
     if args.vocab == 'librispeech':
-        vocab_size = LibrispeechFile.vocab_size()
+        dictionary = LibrispeechDictionary()
+        vocab_size = dictionary.vocab_size()
 
     forced_aligner = ForcedAligner(args.checkpoint, wav2vec_model_path, vocab_size)
     
 
     if args.audio_file:
-        audio_file = get_audio_file(args.vocab, args.audio_file, args.transcription)
+        audio_file = AudioFile(args.audio_file, args.transcription, dictionary)
         utterance = forced_aligner.align_file(audio_file)
 
         output_file = f'{args.audio_file.rsplit(".", 1)[0]}.{args.save_as}'
@@ -79,7 +80,7 @@ def align():
             raise RuntimeError("--input_files, --transcripts, --output_files must all be same length")
 
         for input_file, transcription, output_file in zip(input_file, transcripts, output_files):
-            audio_file = get_audio_file(args.vocab, args.audio_file, args.transcription)
+            audio_file = AudioFile(input_file, transcription, dictionary)
             utterance = forced_aligner.align_file(audio_file)
 
             if not overwrite and os.path.exists(output_file):
@@ -93,12 +94,6 @@ def align():
                 else:
                     warnings.warn(f"Warning: Unknown file type: {terminator}, saving as TextGrid")
                     utterance.save_textgrid(output_file)
-
-
-
-
-    
-    
 
 if __name__ == "__main__":
     align()
