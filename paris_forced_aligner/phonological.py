@@ -49,7 +49,7 @@ class Utterance:
     def base_units(self):
         base = []
         for d in self.data:
-            if isinstance(x, Silence):
+            if isinstance(d, Silence):
                 base.append(d)
             else:
                 base += d.phones
@@ -61,21 +61,23 @@ class Utterance:
             unit.end += offset
 
     def save_csv(self, output_file: str, in_seconds: bool = False):
+        '''WARNING: If your wav file's sample rate is not 16Hz, the sample labels here will be offset'''
+
         with open(output_file, 'w') as f:
             writer = csv.DictWriter(f, fieldnames = ['phone', 'word', 'start', 'end'])
             for word in self.words:
                 for phone in word.phones:
                     if in_seconds:
                         writer.writerow({'phone': phone.label, 'word': word.label,
-                            'start': phone.start / 16000, 'end': phone.end/ 16000})
+                            'start': phone.start / 16000, 'end': phone.end / 16000})
                     else:
                         writer.writerow({'phone': phone.label, 'word': word.label,
                             'start': phone.start, 'end': phone.end})
 
     def save_textgrid(self, output_file: str):
         tg = textgrid.TextGrid()
-        words = textgrid.IntervalTier()
-        phones = textgrid.IntervalTier()
+        words = textgrid.IntervalTier('words')
+        phones = textgrid.IntervalTier('phones')
         for word in self.words:
             words.add(word.start / 16000, word.end / 16000, word.label)
             for phone in word.phones:
