@@ -1,6 +1,8 @@
 import os
 from appdirs import user_data_dir
 from tqdm import tqdm
+from paris_forced_aligne.audio_data import PronunciationDictionary, TSVDictionary, LibrispeechDictionary
+from typing import Tuple
 import urllib.request
 import argparse
 import click
@@ -91,16 +93,29 @@ def add_download_args(parser: argparse.ArgumentParser):
     parser.add_argument('--download-wav2vec', action='store_true')
     parser.add_argument('--wav2vec_model_path', type=str)
 
-def process_download_args(args: argparse.Namespace) -> str:
+def add_dictionary_args(parser: argparse.ArgumentParser):
+    parser.add_argument("--dictionary", default='librispeech', choices=['librispeech', 'tsv'])
+    parser.add_argument("--dictionary_path", type=str)
+
+def process_dictionary_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> Tuple[PronunciationDictionary, int]:
+    if args.dictionary == "librispeech":
+        dictionary = LibrispeechDictionary()
+    elif args.dictionary == "tsv":
+        if not args.dictionary_path:
+            parser.error("Please supply --dictionary_path when using TSV dictionaries")
+        dictionary = TSVDictionary()
+    return dictionary, dictionary.vocab_size()
+
+def process_download_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> str:
     if args.wav2vec_model and args.wav2vec_model_path:
-        raise RuntimeError("Please provide a wav2vec_model or wav2vec_model_path, not both.")
+        parser.error("Please provide a wav2vec_model or wav2vec_model_path, not both.")
 
     if args.wav2vec_model:
         wav2vec_model_name, url = wav2vec_urls[args.wav2vec_model]
         wav2vec_model_path = os.path.join(data_directory, wav2vec_model_name)
 
         if not os.path.exists(wav2vec_model_path) and not args.download_wav2vec:
-            raise RuntimeError(f"Wav2Vec2.0 model {wav2vec_model_name} has not been downloaded, you can download it by passing the --download_wav2vec flag")
+            parser.error(f"Wav2Vec2.0 model {wav2vec_model_name} has not been downloaded, you can download it by passing the --download_wav2vec flag")
 
         if args.download_wav2vec:
             download_data_file(url, wav2vec_model_path)
@@ -108,6 +123,6 @@ def process_download_args(args: argparse.Namespace) -> str:
     elif args.wav2vec_model_path:
         wav2vec_model_path = args.wav2vec_model_path
     else:
-        raise RuntimeError("You must pass either a wav2vec_model or wav2vec_model_path")
+        parser.error("You must pass either a wav2vec_model or wav2vec_model_path")
 
     return wav2vec_model_path

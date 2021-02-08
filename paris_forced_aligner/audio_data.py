@@ -52,21 +52,28 @@ class LibrispeechDictionary(PronunciationDictionary):
                 for phone in self.lexicon[word]:
                     self.phonemic_inventory.add(phone)
 
-class WikipronDictionary(PronunciationDictionary):
-    def __init__(self, lexicon_path: str):
+class TSVDictionary(PronunciationDictionary):
+    def __init__(self, lexicon_path: str, seperator: str='\t', phone_to_phoneme: Optional[Mapping[str, str]]):
         super().__init__()
         self.lexicon_path = lexicon_path
+        self.seperator = seperator
+        if phone_to_phoneme is not None:
+            self.phone_to_phoneme = phone_to_phoneme
+            self.already_ipa = False
+        else:
+            self.phone_to_phoneme: Mapping[str, str] = {}
+            self.already_ipa = True
+
 
     def load_lexicon(self):
-        self.phone_to_phoneme: Mapping[str, str] = {} #This is not memory efficient but who cares!
-
         with open(self.lexicon_path) as f:
             for line in f:
-                word, pronunciation = line.strip().split('\t', 1)
+                word, pronunciation = line.strip().split(self.seperator, 1)
                 self.lexicon[word] = pronunciation.split(' ')
                 for phone in self.lexicon[word]:
                     self.phonemic_inventory.add(phone)
-                    self.phone_to_phoneme[phone] = phone
+                    if self.already_ipa:
+                        self.phone_to_phoneme[phone] = phone
 
 class AudioFile:
     def __init__(self, filename: str, transcription: str, pronunciation_dictionary: PronunciationDictionary,
