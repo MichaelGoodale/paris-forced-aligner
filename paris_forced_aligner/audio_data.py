@@ -25,8 +25,8 @@ class PronunciationDictionary:
         self.phonemic_inventory: Set[str] = set([PronunciationDictionary.silence])
         self.phone_to_phoneme: Mapping[str, str] = {}
         self.load_lexicon()
-        phonemic_mapping: Mapping[str, int] = {phone: i+1 for i, phone in enumerate(sorted(phonemic_inventory))}
-        index_mapping: Mapping[int, str] = {v:k for k, v in phonemic_mapping.items()}
+        self.phonemic_mapping: Mapping[str, int] = {phone: i+1 for i, phone in enumerate(sorted(self.phonemic_inventory))}
+        self.index_mapping: Mapping[int, str] = {v:k for k, v in self.phonemic_mapping.items()}
 
     def load_lexicon(self):
         '''Function to load lexicon and phonemic inventory'''
@@ -119,7 +119,7 @@ class AudioFile:
                 raise OutOfVocabularyException(f"{word} is not present in the librispeech lexicon")
             new_transcription.append(PronunciationDictionary.silence)
 
-        new_transcription_tensor = torch.tensor([self.phonemic_mapping[x] for x in new_transcription])
+        new_transcription_tensor = torch.tensor([self.pronunciation_dictionary.phonemic_mapping[x] for x in new_transcription])
         return new_transcription, new_transcription_tensor
 
     def get_word_transcription(self, transcription: str) -> List[str]:

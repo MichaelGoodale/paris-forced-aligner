@@ -15,9 +15,9 @@ from paris_forced_aligner.phonological import Utterance
 
 
 class CorpusClass():
-    def __init__(self, corpus_path: str):
+    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary):
         self.corpus_path: str = corpus_path
-        self.pronunciation_dictionary = pronunciation_dictionary
+        self.pronunciation_dictionary: PronunciationDictionary = pronunciation_dictionary
 
     def extract_files(self):
         raise NotImplementedError("extract_files must be implemented in a base class")
