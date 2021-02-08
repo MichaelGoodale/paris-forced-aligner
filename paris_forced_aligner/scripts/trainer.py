@@ -1,8 +1,8 @@
 import argparse
 
-from paris_forced_aligner.utils import download_data_file, data_directory, process_download_args, add_download_args, add_dictionary_args, process_dictionary_args
+from paris_forced_aligner.utils import download_data_file, data_directory
+from paris_forced_aligner.scripts.utils import process_download_args, add_download_args, add_dictionary_args, process_dictionary_args
 from paris_forced_aligner.train import train
-from paris_forced_aligner.audio_data import LibrispeechFile
 from paris_forced_aligner.corpus import LibrispeechCorpus, YoutubeCorpus
 from paris_forced_aligner.model import PhonemeDetector
 

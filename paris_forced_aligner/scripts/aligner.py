@@ -1,6 +1,7 @@
 import argparse
 import warnings
-from paris_forced_aligner.utils import download_data_file, data_directory, process_download_args, add_download_args, add_dictionary_args
+from paris_forced_aligner.utils import download_data_file, data_directory
+from paris_forced_aligner.scripts.utils import process_download_args, add_download_args, add_dictionary_args
 
 from paris_forced_aligner.inference import ForcedAligner
 from paris_forced_aligner.corpus import LibrispeechCorpus

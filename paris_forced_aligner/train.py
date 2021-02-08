@@ -1,8 +1,7 @@
 import os
 
-from .corpus import LibrispeechCorpus, CorpusClass
-from .audio_data import LibrispeechFile
-from .model import PhonemeDetector
+from paris_forced_aligner.corpus import LibrispeechCorpus, CorpusClass
+from paris_forced_aligner.model import PhonemeDetector
 
 import torch
 from torch.nn import CTCLoss, CrossEntropyLoss
@@ -45,7 +44,7 @@ def train(model: PhonemeDetector,
         output_model_every:int = 1000):
     ''' Example usage:
 
-        model = PhonemeDetector('../wav2vec2_models/wav2vec_small.pt', LibrispeechFile.vocab_size())
+        model = PhonemeDetector('../wav2vec2_models/wav2vec_small.pt', pronunciation_dictionary.vocab_size())
         model.load_state_dict(torch.load('models/final_output.pt'))
         train(model)
     '''

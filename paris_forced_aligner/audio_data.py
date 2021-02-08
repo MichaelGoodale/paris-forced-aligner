@@ -11,7 +11,8 @@ import re
 import urllib.request
 from typing import Callable, Union, BinaryIO, Optional, Mapping, List, Set, Tuple
 
-from paris_forced_aligner.utils import arpabet_to_ipa, data_directory, download_data_file
+from paris_forced_aligner.utils import data_directory, download_data_file
+from paris_forced_aligner.ipa_data import arpabet_to_ipa
 
 class OutOfVocabularyException(Exception):
     """Raise for my specific kind of exception"""
@@ -53,7 +54,7 @@ class LibrispeechDictionary(PronunciationDictionary):
                     self.phonemic_inventory.add(phone)
 
 class TSVDictionary(PronunciationDictionary):
-    def __init__(self, lexicon_path: str, seperator: str='\t', phone_to_phoneme: Optional[Mapping[str, str]]):
+    def __init__(self, lexicon_path: str, seperator: str='\t', phone_to_phoneme: Optional[Mapping[str, str]] = None):
         super().__init__()
         self.lexicon_path = lexicon_path
         self.seperator = seperator
