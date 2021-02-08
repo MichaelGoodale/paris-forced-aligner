@@ -11,6 +11,7 @@ import torchaudio
 import tempfile
 
 from paris_forced_aligner.audio_data import LibrispeechDictionary, AudioFile, OutOfVocabularyException, PronunciationDictionary
+from paris_forced_aligner.phonological import Utterance
 
 
 class CorpusClass():
@@ -26,13 +27,15 @@ class CorpusClass():
 
 class YoutubeCorpus(CorpusClass):
 
-    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, language: str = 'en', audio_directory: Optional[str] = None):
+    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, language: str = 'en', audio_directory: Optional[str] = None, save_wavs: bool = False, clear_data_every=100):
         super().__init__(corpus_path, pronunciation_dictionary)
         self.youtube_files = []
+        self.save_wavs = save_wavs
+        self.clear_data_every = clear_data_every
+
         if audio_directory is None:
             self._temp_dir = tempfile.TemporaryDirectory()
             self.dir = self._temp_dir.name
-            os.makedirs(output_directory, exist_ok=True)
         else:
             self.dir = audio_directory
         self.language = language
@@ -59,16 +62,43 @@ class YoutubeCorpus(CorpusClass):
             ydl.download(self.youtube_files)
 
         sub_file_ending = ".{}.vtt".format(self.language)
+
         for subtitle_file in filter(lambda x: x.endswith(sub_file_ending), os.listdir(self.dir)):
             audio = subtitle_file.replace(sub_file_ending, ".wav")
             captions = webvtt.read(os.path.join(self.dir, subtitle_file)).captions
             wav, sr = torchaudio.load(os.path.join(self.dir, audio))
-            print(wav.shape)
-            for cap_time, cap_string in zip(captions[::2], captions[1::2]):
+
+            if self.save_wavs:
+                idx_starts_ends: List[Tuple[int, int, int]] = []
+
+            for i, cap_time, cap_string in enumerate(zip(captions[::2], captions[1::2])):
+                cap_name = subtitle_file.replace(sub_file_ending, f"_{i}")
                 transcription = cap_string.text.strip().upper()
                 start = int(cap_time.start_in_seconds * sr)
                 end = int(cap_time.end_in_seconds * sr)
-                yield AudioFile('youtube', transcription, self.pronunciation_dictionary, wavobj=(wav[:, start:end], sr))
+
+                if self.save_wavs:
+                    idx_starts_ends.append(i, start, end)
+
+                yield AudioFile(cap_name, transcription, self.pronunciation_dictionary, wavobj=(wav[:, start:end], sr))
+
+            if self.save_wavs:
+                with open(subtitle_file.replace(sub_file_ending, '.txt'), 'w') as f:
+                    for i, start, end in idx_starts_ends:
+                        f.write(f"{i} {start} {end}\n")
+
+    def stitch_youtube_utterances(audio_file_name: str, utterances: List[Utterance]):
+        index_file = audio_file_name.rsplit("_", 1)[0] + '.txt' 
+        with open(index_file, 'r') as f:
+            for utterance, line in zip(utterances, f):
+                i, start, end = i.strip().split(' ')
+                utterance.offset(start)
+        return Utterance(sum(u.data for u in utterances))
+
+    def cleanup_and_recreate(self):
+        self.cleanup()
+        self._temp_dir = tempfile.TemporaryDirectory()
+        self.dir = self._temp_dir.name
 
     def cleanup(self):
         self._temp_dir.cleanup()

@@ -45,6 +45,21 @@ class Utterance:
     def end(self):
         return self.data[-1].end
 
+    @property
+    def base_units(self):
+        base = []
+        for d in self.data:
+            if isinstance(x, Silence):
+                base.append(d)
+            else:
+                base += d.phones
+        return base
+
+    def offset(self, offset):
+        for unit in self.base_units:
+            unit.start += offset
+            unit.end += offset
+
     def save_csv(self, output_file: str, in_seconds: bool = False):
         with open(output_file, 'w') as f:
             writer = csv.DictWriter(f, fieldnames = ['phone', 'word', 'start', 'end'])

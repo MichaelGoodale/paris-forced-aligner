@@ -3,7 +3,7 @@ import argparse
 from paris_forced_aligner.utils import download_data_file, data_directory, process_download_args, add_download_args, add_dictionary_args, process_dictionary_args
 from paris_forced_aligner.train import train
 from paris_forced_aligner.audio_data import LibrispeechFile
-from paris_forced_aligner.corpus import LibrispeechCorpus
+from paris_forced_aligner.corpus import LibrispeechCorpus, YoutubeCorpus
 from paris_forced_aligner.model import PhonemeDetector
 
 def train_model():
@@ -21,7 +21,11 @@ def train_model():
     pronunciation_dictionary, vocab_size = process_dictionary_args(parser, args)
 
     if args.corpus_type == 'librispeech':
+        if args.dictionary != "librispeech":
+            parser.error("You must use --dictionary librispeech when using --corpus librispeech")
         corpus = LibrispeechCorpus(args.corpus_path, n_proc=args.n_proc)
+    elif arg.corpus_type == 'youtube':
+        corpus = YoutubeCorpus(args.corpus_path)
 
     model = PhonemeDetector(wav2vec_model_path, vocab_size)
 
