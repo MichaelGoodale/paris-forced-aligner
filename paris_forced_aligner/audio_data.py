@@ -81,6 +81,7 @@ class AudioFile:
             fileobj: Optional[BinaryIO] = None,
             wavobj: Optional[Tuple[Tensor, int]] = None,
             extract_features: bool = False,
+            raise_on_oov: bool=True,
             feature_extractor: Callable[[Tensor], Tensor] = MFCC()):
 
         self.filename = filename
@@ -92,7 +93,10 @@ class AudioFile:
         else:
             self.features = self.wav
 
-        self.transcription, self.tensor_transcription = self.get_phone_transcription(transcription)
+        #Treat words with hyphens as two words.
+        transcription = transcription.replace('-', ' ')
+
+        self.transcription, self.tensor_transcription = self.get_phone_transcription(transcription, raise_on_oov)
         self.words = self.get_word_transcription(transcription)
 
     def load_audio(self, fileobj: Optional[BinaryIO] = None, wavobj = None):
@@ -109,14 +113,17 @@ class AudioFile:
         if sr != 16000:
             self.wav = Resample(sr, 16000)(self.wav)
 
-    def get_phone_transcription(self, transcription: str) -> Tuple[List[str], Tensor]:
+    def get_phone_transcription(self, transcription: str, raise_on_oov: bool=True) -> Tuple[List[str], Tensor]:
         new_transcription: List[str] = [PronunciationDictionary.silence]
 
         for word in transcription.split(' '):
             try:
                 new_transcription += self.pronunciation_dictionary.lexicon[word] 
             except KeyError:
-                raise OutOfVocabularyException(f"{word} is not present in the librispeech lexicon")
+                if raise_on_oov:
+                    raise OutOfVocabularyException(f"{word} is not present in the librispeech lexicon")
+                else:
+                    new_transcription += self.pronunciation_dictionary.lexicon["OOV"] 
             new_transcription.append(PronunciationDictionary.silence)
 
         new_transcription_tensor = torch.tensor([self.pronunciation_dictionary.phonemic_mapping[x] for x in new_transcription])

@@ -15,9 +15,10 @@ from paris_forced_aligner.phonological import Utterance
 
 
 class CorpusClass():
-    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary):
+    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, skip_oov: bool = True):
         self.corpus_path: str = corpus_path
         self.pronunciation_dictionary: PronunciationDictionary = pronunciation_dictionary
+        self.skip_oov = skip_oov
 
     def extract_files(self):
         raise NotImplementedError("extract_files must be implemented in a base class")
@@ -28,7 +29,7 @@ class CorpusClass():
 class YoutubeCorpus(CorpusClass):
 
     def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, language: str = 'en', audio_directory: Optional[str] = None, save_wavs: bool = False):
-        super().__init__(corpus_path, pronunciation_dictionary)
+        super().__init__(corpus_path, pronunciation_dictionary, False)
         self.youtube_files = []
         self.save_wavs = save_wavs
 
@@ -82,7 +83,7 @@ class YoutubeCorpus(CorpusClass):
 
                 if self.save_wavs:
                     idx_starts_ends.append((i, int(start / sr  * 16000), int(end / sr * 16000)))
-                yield AudioFile(cap_name, transcription, self.pronunciation_dictionary, wavobj=(wav[:, start:end], sr))
+                yield AudioFile(cap_name, transcription, self.pronunciation_dictionary, wavobj=(wav[:, start:end], sr), raise_on_oov=self.skip_oov)
 
             if self.save_wavs:
                 with open(subtitle_file.replace(sub_file_ending, '.txt'), 'w') as f:
@@ -109,8 +110,8 @@ class YoutubeCorpus(CorpusClass):
 
 
 class LibrispeechCorpus(CorpusClass):
-    def __init__(self, corpus_path: str, n_proc: int = cpu_count()):
-        super().__init__(corpus_path, LibrispeechDictionary())
+    def __init__(self, corpus_path: str, n_proc: int = cpu_count(), skip_oov: bool = True):
+        super().__init__(corpus_path, LibrispeechDictionary(), skip_oov)
         self.n_proc = n_proc
 
     def extract_files(self):
@@ -129,7 +130,7 @@ class LibrispeechCorpus(CorpusClass):
                             filename, transcription = line.strip().split(' ', 1)
                             filename = LibrispeechCorpus._get_flac_filepath(directory_path, filename)
                             try:
-                                yield AudioFile(filename, transcription, self.pronunciation_dictionary, fileobj=tar_file.extractfile(filename))
+                                yield AudioFile(filename, transcription, self.pronunciation_dictionary, fileobj=tar_file.extractfile(filename), raise_on_oov=self.skip_oov)
                             except OutOfVocabularyException:
                                 pass
 
@@ -155,7 +156,7 @@ class LibrispeechCorpus(CorpusClass):
                     filename, transcription = line.strip().split(' ', 1)
                     filename = LibrispeechCorpus._get_flac_filepath(directory_path, filename)
                     try:
-                        audio = AudioFile(filename, transcription, self.pronunciation_dictionary, fileobj=tar_file.extractfile(filename))
+                        audio = AudioFile(filename, transcription, self.pronunciation_dictionary, fileobj=tar_file.extractfile(filename), raise_on_oov=self.skip_oov)
                         returns.append(audio)
                     except OutOfVocabularyException:
                         pass
