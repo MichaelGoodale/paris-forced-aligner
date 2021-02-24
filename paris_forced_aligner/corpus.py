@@ -1,5 +1,6 @@
 import os
 import tarfile
+from zipfile import ZipFile
 import random
 from typing import List, Optional
 from functools import partial 
@@ -15,21 +16,22 @@ from paris_forced_aligner.phonological import Utterance
 
 
 class CorpusClass():
-    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, skip_oov: bool = True):
+    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, skip_oov: bool = True, return_gold_labels: bool = False):
         self.corpus_path: str = corpus_path
         self.pronunciation_dictionary: PronunciationDictionary = pronunciation_dictionary
         self.skip_oov = skip_oov
+        self.return_gold_labels = return_gold_labels
 
     def extract_files(self):
         raise NotImplementedError("extract_files must be implemented in a base class")
 
     def __iter__(self):
-        return iter(self.extract_files())
+        return iter(self.extract_files(self.return_gold_labels))
 
 class YoutubeCorpus(CorpusClass):
 
     def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, language: str = 'en', audio_directory: Optional[str] = None, save_wavs: bool = False):
-        super().__init__(corpus_path, pronunciation_dictionary, False)
+        super().__init__(corpus_path, pronunciation_dictionary, False, False)
         self.youtube_files = []
         self.save_wavs = save_wavs
 
@@ -47,7 +49,9 @@ class YoutubeCorpus(CorpusClass):
         else:
             self.youtube_files.append(corpus_path)
 
-    def extract_files(self):
+    def extract_files(self, return_gold_labels):
+        if return_gold_labels:
+            raise NotImplementedError("Youtube videos do not have gold standard phonemic labels")
         YDL_OPTS = {
             'format': 'bestaudio/best',
             'writeautomaticsub': True,
@@ -111,10 +115,13 @@ class YoutubeCorpus(CorpusClass):
 
 class LibrispeechCorpus(CorpusClass):
     def __init__(self, corpus_path: str, n_proc: int = cpu_count(), skip_oov: bool = True):
-        super().__init__(corpus_path, LibrispeechDictionary(), skip_oov)
+        super().__init__(corpus_path, LibrispeechDictionary(), skip_oov, False)
         self.n_proc = n_proc
 
-    def extract_files(self):
+    def extract_files(self, return_gold_labels):
+        if return_gold_labels:
+            raise NotImplementedError("Librispeech does not have gold standard phonemic labels")
+
         with tarfile.open(self.corpus_path, 'r:gz', encoding='utf-8') as f:
             text_files = list(filter(lambda x: x.endswith('.trans.txt'), f.getnames()))
             directory_path = '/'.join(text_files[0].split('/')[:2])
@@ -130,7 +137,9 @@ class LibrispeechCorpus(CorpusClass):
                             filename, transcription = line.strip().split(' ', 1)
                             filename = LibrispeechCorpus._get_flac_filepath(directory_path, filename)
                             try:
-                                yield AudioFile(filename, transcription, self.pronunciation_dictionary, fileobj=tar_file.extractfile(filename), raise_on_oov=self.skip_oov)
+                                with tar_file.extractfile(filename) as wav_obj:
+                                    audio = AudioFile(filename, transcription, self.pronunciation_dictionary, fileobj=wav_obj, raise_on_oov=self.skip_oov)
+                                yield audio
                             except OutOfVocabularyException:
                                 pass
 
@@ -156,8 +165,31 @@ class LibrispeechCorpus(CorpusClass):
                     filename, transcription = line.strip().split(' ', 1)
                     filename = LibrispeechCorpus._get_flac_filepath(directory_path, filename)
                     try:
-                        audio = AudioFile(filename, transcription, self.pronunciation_dictionary, fileobj=tar_file.extractfile(filename), raise_on_oov=self.skip_oov)
+                        with tar_file.extractfile(filename) as wav_obj:
+                            audio = AudioFile(filename, transcription, self.pronunciation_dictionary, fileobj=wav_obj, raise_on_oov=self.skip_oov)
                         returns.append(audio)
                     except OutOfVocabularyException:
                         pass
         return returns
+
+class BuckeyeCorpus(CorpusClass):
+    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False):
+        super().__init__(corpus_path, pronunciation_dictionary, False, return_gold_labels)
+
+    def _extract_from_zip(zip_dir, sound_zip):
+        file_id = sound_zip.replace(".zip", "")
+        with ZipFile(zip_dir.open(sound_zip)) as sound_dir:
+            with sound_dir.open(file_id + ".wav") as wav_file:
+                pass
+
+    def extract_files(self, return_gold_labels):
+        for d, s_d, files in os.walk(self.corpus_path):
+            for f in filter(lambda x: x.endswith('.zip'), files):
+                zip_path = os.path.join(d, f)
+                with ZipFile(zip_path) as zip_dir:
+                    for sound_zip in zip_dir.namelist():
+                        audio, utterance = _extract_from_zip(zip_dir, sound_zip)
+                        if return_gold_labels:
+                            return audio, utterance
+                        else:
+                            return audio
