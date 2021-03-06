@@ -55,6 +55,10 @@ class Utterance:
                 base += d.phones
         return base
 
+    @property
+    def transcription(self):
+        return " ".join(w.label for w in self.words)
+
     def offset(self, offset):
         for unit in self.base_units:
             unit.start += offset

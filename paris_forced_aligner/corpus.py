@@ -1,3 +1,4 @@
+import io
 import os
 import tarfile
 from zipfile import ZipFile
@@ -6,13 +7,14 @@ from typing import List, Optional
 from functools import partial 
 
 from torch.multiprocessing import Pool, cpu_count
+import buckeye
 import youtube_dl
 import webvtt
 import torchaudio
 import tempfile
 
 from paris_forced_aligner.audio_data import LibrispeechDictionary, AudioFile, OutOfVocabularyException, PronunciationDictionary
-from paris_forced_aligner.phonological import Utterance
+from paris_forced_aligner.phonological import Utterance, Silence, Word, Phone
 
 
 class CorpusClass():
@@ -173,23 +175,59 @@ class LibrispeechCorpus(CorpusClass):
         return returns
 
 class BuckeyeCorpus(CorpusClass):
-    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False):
+    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False, split_time: int = 10):
         super().__init__(corpus_path, pronunciation_dictionary, False, return_gold_labels)
 
-    def _extract_from_zip(zip_dir, sound_zip):
-        file_id = sound_zip.replace(".zip", "")
-        with ZipFile(zip_dir.open(sound_zip)) as sound_dir:
-            with sound_dir.open(file_id + ".wav") as wav_file:
-                pass
+    def _extract_from_zip(self, zip_dir, track_name, speaker_name):
+        with ZipFile(zip_dir.open(f"{speaker_name}/{track_name}.zip")) as sound_dir:
+            with sound_dir.open(f"{track_name}.wav") as wav_file:
+                wav, sr = torchaudio.load(wav_file)
+        return wav, sr
+
+    def convert_to_arpabet(word, sr=16000):
+        '''Handles converting from seconds to frames and also handles any phoneme differences'''
+        if isinstance(word, Silence):
+            word = Silence(int(word.start * sr), int(word.end *sr))
+        else:
+            word.label = word.label.upper()
+            for phone in word.phones:
+                phone.start = int(phone.start * sr)
+                phone.end = int(phone.end * sr)
+                phone.label = phone.label.upper()
+        return word
+
+    def merge_silences(words):
+        return words
 
     def extract_files(self, return_gold_labels):
         for d, s_d, files in os.walk(self.corpus_path):
             for f in filter(lambda x: x.endswith('.zip'), files):
                 zip_path = os.path.join(d, f)
+                speaker = buckeye.Speaker.from_zip(zip_path)
                 with ZipFile(zip_path) as zip_dir:
-                    for sound_zip in zip_dir.namelist():
-                        audio, utterance = _extract_from_zip(zip_dir, sound_zip)
-                        if return_gold_labels:
-                            return audio, utterance
-                        else:
-                            return audio
+                    for track in speaker:
+                        start = 0.0
+                        paris_words = []
+                        wav, sr = self._extract_from_zip(zip_dir, track.name, speaker.name)
+
+                        for word in track.words:
+                            if isinstance(word, buckeye.containers.Pause):
+                                paris_word = Silence(word.beg, word.end)
+                            else:
+                                paris_word = Word([Phone(p.seg, p.beg, p.end) for p in word.phones], word.orthography)
+                                #TODO: Add dynamic dictionary words w/ correct pronunciation (maybe)
+                            paris_words.append(BuckeyeCorpus.convert_to_arpabet(paris_word))
+
+                            if word.beg - start > 10.0 and isinstance(word, buckeye.containers.Pause):
+                                utterance = Utterance(BuckeyeCorpus.merge_silences(paris_words))
+                                audio = AudioFile(track.name, utterance.transcription, self.pronunciation_dictionary, wavobj=(wav[:, utterance.start:utterance.end], 16000), raise_on_oov=self.skip_oov)
+                                if return_gold_labels:
+                                    yield audio, utterance
+                                else:
+                                    yield audio
+
+                                paris_words = []
+                                start = word.beg
+
+for x in BuckeyeCorpus("/home/michael/Documents/Buckeye/", LibrispeechDictionary()):
+    print(x)
