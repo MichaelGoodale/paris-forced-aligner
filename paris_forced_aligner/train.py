@@ -51,7 +51,8 @@ def train(model: PhonemeDetector,
     '''
     os.makedirs(output_directory, exist_ok=True)
     model.to(device)
-    model.wav2vec.to(device)
+    if device != 'cpu':
+        model.wav2vec.cuda()
     model.train()
     model.freeze_encoder()
 
