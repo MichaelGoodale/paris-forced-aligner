@@ -2,7 +2,7 @@ import argparse
 import os 
 from typing import Tuple
 from paris_forced_aligner.audio_data import PronunciationDictionary, TSVDictionary, LibrispeechDictionary
-from paris_forced_aligner.utils import data_directory
+from paris_forced_aligner.utils import data_directory, download_data_file
 
 wav2vec_urls = {
         'small': ('wav2vec2_small.pt', 'https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_small.pt'),
