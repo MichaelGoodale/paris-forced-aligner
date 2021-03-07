@@ -16,12 +16,14 @@ def add_download_args(parser: argparse.ArgumentParser):
     parser.add_argument('--wav2vec_model_path', type=str)
 
 def add_dictionary_args(parser: argparse.ArgumentParser):
-    parser.add_argument("--dictionary", default='librispeech', choices=['librispeech', 'tsv'])
+    parser.add_argument("--dictionary", default='librispeech', choices=['librispeech', 'librispeech_stressed', 'tsv'])
     parser.add_argument("--dictionary_path", type=str)
 
 def process_dictionary_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> Tuple[PronunciationDictionary, int]:
     if args.dictionary == "librispeech":
         dictionary = LibrispeechDictionary()
+    elif args.dictionary == "librispeech_stressed":
+        dictionary = LibrispeechDictionary(remove_stress=False)
     elif args.dictionary == "tsv":
         if not args.dictionary_path:
             parser.error("Please supply --dictionary_path when using TSV dictionaries")

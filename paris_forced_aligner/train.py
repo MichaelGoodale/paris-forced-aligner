@@ -37,11 +37,12 @@ def train(model: PhonemeDetector,
         corpus: CorpusClass,
         output_directory:str = "models",
         accumulate_steps: int = 20,
-        n_steps: int = 30000,
+        n_steps:int = 30000,
         unfreeze_after:int = 10000,
         zero_lambda_until:int = 20000,
-        lambda_param: float = 0.1,
-        output_model_every:int = 1000):
+        lambda_param:float = 0.1,
+        output_model_every:int = 1000,
+        device:str = 'cpu'):
     ''' Example usage:
 
         model = PhonemeDetector('../wav2vec2_models/wav2vec_small.pt', pronunciation_dictionary.vocab_size())
@@ -49,7 +50,7 @@ def train(model: PhonemeDetector,
         train(model)
     '''
     os.makedirs(output_directory, exist_ok=True)
-
+    model.to(device)
     model.train()
     model.freeze_encoder()
 
@@ -65,6 +66,9 @@ def train(model: PhonemeDetector,
         i = 0
         while i < n_steps:
             for audio_file in corpus:
+                audio_file.wav.to(device)
+                audio_file.tensor_transcription.to(device)
+
                 X = model(audio_file.wav)
                 ctc_loss = ctc_loss_fn(X, audio_file.tensor_transcription.unsqueeze(0), (X.shape[0],), (audio_file.tensor_transcription.shape[0], )) 
 

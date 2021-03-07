@@ -14,6 +14,7 @@ def train_model():
     parser.add_argument("--checkpoint", type=str)
     parser.add_argument("--corpus_path", type=str, required=True)
     parser.add_argument("--corpus_type", default="librispeech", choices=['librispeech', 'youtube'])
+    parser.add_argument("--gpu", action='store_true')
     parser.add_argument("--n_proc", type=int, default=1)
 
     args = parser.parse_args()
@@ -32,8 +33,14 @@ def train_model():
     if args.checkpoint:
         model.load_state_dict(torch.load(args.checkpoint))
 
+    if args.gpu:
+        device = 'cuda:0'
+    else:
+        device = 'cpu'
+
     train(model, corpus, 
-        output_directory=args.output_dir)
+        output_directory=args.output_dir,
+        device=device)
 
 if __name__ == "__main__":
     train_model()

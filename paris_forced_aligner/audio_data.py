@@ -39,6 +39,11 @@ class PronunciationDictionary:
         return self.index_mapping[idx]
 
 class LibrispeechDictionary(PronunciationDictionary):
+
+    def __init__(self, remove_stress=True):
+        self.remove_stress = remove_stress
+        super().__init__()
+
     def load_lexicon(self):
         self.phone_to_phoneme: Mapping[str, str] = arpabet_to_ipa
 
@@ -49,6 +54,9 @@ class LibrispeechDictionary(PronunciationDictionary):
         with open(lexicon_path) as f:
             for line in f:
                 word, pronunciation = re.split(r'\s+', line.strip(), maxsplit=1)
+                if self.remove_stress:
+                    pronunciation = re.sub(r'[0-9]+', '', pronunciation)
+
                 self.lexicon[word] = pronunciation.split(' ')
                 for phone in self.lexicon[word]:
                     self.phonemic_inventory.add(phone)
