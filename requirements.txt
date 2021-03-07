@@ -12,7 +12,6 @@ clldutils==3.6.0
 colorlog==4.7.2
 cssselect==1.1.0
 csvw==1.10.0
-ctcdecode==1.0.2
 cycler==0.10.0
 Cython==0.29.21
 docopt==0.6.2
