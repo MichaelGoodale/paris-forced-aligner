@@ -18,10 +18,10 @@ from paris_forced_aligner.phonological import Utterance, Silence, Word, Phone
 
 
 class CorpusClass():
-    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, skip_oov: bool = True, return_gold_labels: bool = False):
-        self.corpus_path: str = corpus_path
+    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, raise_on_oov: bool = True, return_gold_labels: bool = False):
+        self.corpus_path: str = os.path.expanduser(corpus_path)
         self.pronunciation_dictionary: PronunciationDictionary = pronunciation_dictionary
-        self.skip_oov = skip_oov
+        self.raise_on_oov = raise_on_oov
         self.return_gold_labels = return_gold_labels
 
     def extract_files(self):
@@ -89,7 +89,7 @@ class YoutubeCorpus(CorpusClass):
 
                 if self.save_wavs:
                     idx_starts_ends.append((i, int(start / sr  * 16000), int(end / sr * 16000)))
-                yield AudioFile(cap_name, transcription, self.pronunciation_dictionary, wavobj=(wav[:, start:end], sr), raise_on_oov=self.skip_oov)
+                yield AudioFile(cap_name, transcription, self.pronunciation_dictionary, wavobj=(wav[:, start:end], sr), raise_on_oov=self.raise_on_oov)
 
             if self.save_wavs:
                 with open(subtitle_file.replace(sub_file_ending, '.txt'), 'w') as f:
@@ -116,8 +116,8 @@ class YoutubeCorpus(CorpusClass):
 
 
 class LibrispeechCorpus(CorpusClass):
-    def __init__(self, corpus_path: str, n_proc: int = cpu_count(), skip_oov: bool = True):
-        super().__init__(corpus_path, LibrispeechDictionary(), skip_oov, False)
+    def __init__(self, corpus_path: str, n_proc: int = cpu_count(), raise_on_oov: bool = True):
+        super().__init__(corpus_path, LibrispeechDictionary(), raise_on_oov, False)
         self.n_proc = n_proc
 
     def extract_files(self, return_gold_labels):
@@ -140,7 +140,7 @@ class LibrispeechCorpus(CorpusClass):
                             filename = LibrispeechCorpus._get_flac_filepath(directory_path, filename)
                             try:
                                 with tar_file.extractfile(filename) as wav_obj:
-                                    audio = AudioFile(filename, transcription, self.pronunciation_dictionary, fileobj=wav_obj, raise_on_oov=self.skip_oov)
+                                    audio = AudioFile(filename, transcription, self.pronunciation_dictionary, fileobj=wav_obj, raise_on_oov=self.raise_on_oov)
                                 yield audio
                             except OutOfVocabularyException:
                                 pass
@@ -168,7 +168,7 @@ class LibrispeechCorpus(CorpusClass):
                     filename = LibrispeechCorpus._get_flac_filepath(directory_path, filename)
                     try:
                         with tar_file.extractfile(filename) as wav_obj:
-                            audio = AudioFile(filename, transcription, self.pronunciation_dictionary, fileobj=wav_obj, raise_on_oov=self.skip_oov)
+                            audio = AudioFile(filename, transcription, self.pronunciation_dictionary, fileobj=wav_obj, raise_on_oov=self.raise_on_oov)
                         returns.append(audio)
                     except OutOfVocabularyException:
                         pass
@@ -176,7 +176,7 @@ class LibrispeechCorpus(CorpusClass):
 
 class BuckeyeCorpus(CorpusClass):
     def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False, split_time: int = 10):
-        super().__init__(corpus_path, pronunciation_dictionary, False, return_gold_labels)
+        super().__init__(corpus_path, pronunciation_dictionary, True, return_gold_labels)
 
     def _extract_from_zip(self, zip_dir, track_name, speaker_name):
         with ZipFile(zip_dir.open(f"{speaker_name}/{track_name}.zip")) as sound_dir:
@@ -193,11 +193,29 @@ class BuckeyeCorpus(CorpusClass):
             for phone in word.phones:
                 phone.start = int(phone.start * sr)
                 phone.end = int(phone.end * sr)
-                phone.label = phone.label.upper()
+                if phone.label is not None:
+                    phone.label = phone.label.upper()
+                else:
+                    phone.label = PronunciationDictionary.silence
         return word
 
     def merge_silences(words):
-        return words
+        last = None
+        new_words = []
+        for word in words:
+            if isinstance(word, Silence):
+                if last is not None:
+                    last.end = word.end
+                else:
+                    last = word
+            else:
+                if last is not None:
+                    new_words.append(last)
+                    last = None
+                new_words.append(word)
+        if last is not None:
+            new_words.append(last)
+        return new_words
 
     def extract_files(self, return_gold_labels):
         for d, s_d, files in os.walk(self.corpus_path):
@@ -220,14 +238,11 @@ class BuckeyeCorpus(CorpusClass):
 
                             if word.beg - start > 10.0 and isinstance(word, buckeye.containers.Pause):
                                 utterance = Utterance(BuckeyeCorpus.merge_silences(paris_words))
-                                audio = AudioFile(track.name, utterance.transcription, self.pronunciation_dictionary, wavobj=(wav[:, utterance.start:utterance.end], 16000), raise_on_oov=self.skip_oov)
-                                if return_gold_labels:
-                                    yield audio, utterance
-                                else:
-                                    yield audio
-
+                                if utterance.words != []:
+                                    audio = AudioFile(track.name, utterance.transcription, self.pronunciation_dictionary, wavobj=(wav[:, utterance.start:utterance.end], 16000), raise_on_oov=self.raise_on_oov)
+                                    if return_gold_labels:
+                                        yield audio, utterance
+                                    else:
+                                        yield audio
                                 paris_words = []
                                 start = word.beg
-
-for x in BuckeyeCorpus("/home/michael/Documents/Buckeye/", LibrispeechDictionary()):
-    print(x)

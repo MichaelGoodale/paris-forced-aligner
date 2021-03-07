@@ -14,7 +14,8 @@ setuptools.setup(name='paris_forced_aligner',
       entry_points={
       'console_scripts': [
             'paris_forced_aligner = paris_forced_aligner.scripts.aligner:align',
-            'paris_forced_trainer = paris_forced_aligner.scripts.trainer:train_model'
+            'paris_forced_trainer = paris_forced_aligner.scripts.trainer:train_model',
+            'paris_forced_evaluator = paris_forced_aligner.scripts.evaluator:evaluate'
       ],
       },
       packages=setuptools.find_packages(),
