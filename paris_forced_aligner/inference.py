@@ -8,7 +8,7 @@ class ForcedAligner:
 
     def __init__(self, filepath: str, wav2vec_file: str, vocab_size: int, n_beams: int = 50):
         model = PhonemeDetector(wav2vec_file, vocab_size)
-        model.load_state_dict(torch.load(filepath))
+        model.load_state_dict(torch.load(filepath), map_location='cpu')
         self.model = model
         self.BEAMS = n_beams
 

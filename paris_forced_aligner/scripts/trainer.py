@@ -40,13 +40,15 @@ def train_model():
 
     model = PhonemeDetector(wav2vec_model_path, vocab_size)
 
-    if args.checkpoint:
-        model.load_state_dict(torch.load(args.checkpoint))
-
     if args.gpu:
         device = 'cuda:0'
+        model.cuda()
     else:
         device = 'cpu'
+
+    if args.checkpoint:
+        model.load_state_dict(torch.load(args.checkpoint, map_location=device))
+
     train(model, corpus, 
         output_directory=args.output_dir,
         batch_size=args.batch_size,
