@@ -39,22 +39,23 @@ def batched_audio_files(corpus, batch_size=1, device='cpu'):
     for audio_file in corpus:
         batch.append(audio_file)
         if len(batch) == batch_size:
-            wav_lengths = torch.tensor([a.wav.shape[1] for a in batch])
-            input_wavs = torch.zeros((batch_size, wav_lengths.max()))
-            padding_mask = torch.ones((batch_size, wav_lengths.max()))
+            with torch.no_grad():
+                wav_lengths = torch.tensor([a.wav.shape[1] for a in batch])
+                input_wavs = torch.zeros((batch_size, wav_lengths.max()))
+                padding_mask = torch.ones((batch_size, wav_lengths.max()))
 
-            for i, (length, a) in enumerate(zip(wav_lengths, batch)):
-                input_wavs[i, :length] = a.wav
-                padding_mask[i, :length] = 0
+                for i, (length, a) in enumerate(zip(wav_lengths, batch)):
+                    input_wavs[i, :length] = a.wav
+                    padding_mask[i, :length] = 0
 
-            transcription_lengths = torch.tensor([a.tensor_transcription.shape[0] for a in batch])
-            transcriptions = torch.zeros((batch_size, transcription_lengths.max()))
-            for i, (length, a) in enumerate(zip(transcription_lengths, batch)):
-                transcriptions[i, :length] = a.tensor_transcription
-            input_wavs = input_wavs.to(device)
-            padding_mask = padding_mask.to(device)
-            transcriptions = transcriptions.to(device)
-            transcription_lengths = transcription_lengths.to(device)
+                transcription_lengths = torch.tensor([a.tensor_transcription.shape[0] for a in batch])
+                transcriptions = torch.zeros((batch_size, transcription_lengths.max()))
+                for i, (length, a) in enumerate(zip(transcription_lengths, batch)):
+                    transcriptions[i, :length] = a.tensor_transcription
+                input_wavs = input_wavs.to(device)
+                padding_mask = padding_mask.to(device)
+                transcriptions = transcriptions.to(device)
+                transcription_lengths = transcription_lengths.to(device)
             batch = []
             yield input_wavs, padding_mask, transcriptions, transcription_lengths
 
