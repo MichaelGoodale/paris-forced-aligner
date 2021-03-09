@@ -49,6 +49,10 @@ def batched_audio_files(corpus, batch_size=1, device='cpu'):
             transcriptions = torch.zeros((batch_size, transcription_lengths.max()))
             for i, (length, a) in enumerate(zip(transcription_lengths, batch)):
                 transcriptions[i, :length] = a.tensor_transcription
+            input_wavs = input_wavs.to(device)
+            padding_mask = padding_mask.to(device)
+            transcriptions = transcriptions.to(device)
+            transcription_lengths = transcription_lengths.to(device)
             yield input_wavs, padding_mask, transcriptions, transcription_lengths
             batch = []
 
