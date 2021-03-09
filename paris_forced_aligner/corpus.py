@@ -116,57 +116,25 @@ class YoutubeCorpus(CorpusClass):
 
 
 class LibrispeechCorpus(CorpusClass):
-    def __init__(self, corpus_path: str, n_proc: int = cpu_count(), raise_on_oov: bool = False):
+    def __init__(self, corpus_path: str, raise_on_oov: bool = False):
         super().__init__(corpus_path, LibrispeechDictionary(), raise_on_oov, False)
-        self.n_proc = n_proc
 
     def extract_files(self, return_gold_labels):
         if return_gold_labels:
             raise NotImplementedError("Librispeech does not have gold standard phonemic labels")
 
-        with tarfile.open(self.corpus_path, 'r:gz', encoding='utf-8') as f:
-            text_files = list(filter(lambda x: x.endswith('.trans.txt'), f.getnames()))
-            directory_path = '/'.join(text_files[0].split('/')[:2])
+        found_files = False
+        for d, s_d, files in os.walk(self.corpus_path):
+            for t_file in filter(lambda x: x.endswith('.trans.txt'), files):
+                with open(os.path.join(d, t_file)) as f:
+                    found_files = True
+                    for line in f:
+                        filename, transcription = line.strip().split(' ', 1)
+                        filename = os.path.join(d, f"{filename}.flac")
+                        yield AudioFile(filename, transcription, self.pronunciation_dictionary, raise_on_oov=self.raise_on_oov)
 
-        random.shuffle(text_files)
-
-        if self.n_proc == 1:
-            with tarfile.open(self.corpus_path, 'r:gz', encoding='utf-8') as tar_file:
-                for text_path in text_files:
-                    with tar_file.extractfile(text_path) as f:
-                        for line in f:
-                            line = line.decode('utf-8')
-                            filename, transcription = line.strip().split(' ', 1)
-                            filename = LibrispeechCorpus._get_flac_filepath(directory_path, filename)
-                            with tar_file.extractfile(filename) as wav_obj:
-                                audio = AudioFile(filename, transcription, self.pronunciation_dictionary, fileobj=wav_obj, raise_on_oov=self.raise_on_oov)
-                            yield audio
-
-        else:
-            BATCH_SIZE = self.n_proc
-            with Pool(self.n_proc) as p:
-                for i in range(len(text_files)//BATCH_SIZE):
-                    text_file_batch = text_files[BATCH_SIZE*i:BATCH_SIZE*i+BATCH_SIZE]
-                    for directory in p.imap_unordered(partial(LibrispeechCorpus._extract_directory, self.corpus_path, directory_path, self.pronunciation_dictionary, self.raise_on_oov), text_file_batch):
-                        for audio in directory:
-                            yield audio
-
-    def _get_flac_filepath(directory_path, file_name):
-        top_dir, mid_dir, _ = file_name.split('-')
-        return '{}/{}/{}/{}.flac'.format(directory_path, top_dir, mid_dir, file_name)
-
-    def _extract_directory(corpus_path, directory_path, pronunciation_dictionary, raise_on_oov, text_path):
-        returns = []
-        with tarfile.open(corpus_path, 'r:gz', encoding='utf-8') as tar_file:
-            with tar_file.extractfile(text_path) as f:
-                for line in f:
-                    line = line.decode('utf-8')
-                    filename, transcription = line.strip().split(' ', 1)
-                    filename = LibrispeechCorpus._get_flac_filepath(directory_path, filename)
-                    with tar_file.extractfile(filename) as wav_obj:
-                        audio = AudioFile(filename, transcription, pronunciation_dictionary, fileobj=wav_obj, raise_on_oov=raise_on_oov)
-                    returns.append(audio)
-        return returns
+        if not found_files:
+            raise IOError(f"{self.corpus_path} has no files!")
 
 class BuckeyeCorpus(CorpusClass):
     def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False, split_time: int = 10):

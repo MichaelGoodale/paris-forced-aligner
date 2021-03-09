@@ -1,4 +1,5 @@
 import os
+import time
 
 from paris_forced_aligner.corpus import LibrispeechCorpus, CorpusClass
 from paris_forced_aligner.model import PhonemeDetector
@@ -34,6 +35,7 @@ def self_framewise_loss(X):
 
 def batched_audio_files(corpus, batch_size=1, device='cpu'):
     batch = []
+    start = time.time()
     for audio_file in corpus:
         batch.append(audio_file)
         if len(batch) == batch_size:
@@ -53,8 +55,8 @@ def batched_audio_files(corpus, batch_size=1, device='cpu'):
             padding_mask = padding_mask.to(device)
             transcriptions = transcriptions.to(device)
             transcription_lengths = transcription_lengths.to(device)
-            yield input_wavs, padding_mask, transcriptions, transcription_lengths
             batch = []
+            yield input_wavs, padding_mask, transcriptions, transcription_lengths
 
 def train(model: PhonemeDetector, 
         corpus: CorpusClass,

@@ -1,7 +1,5 @@
 import torch
 import torchaudio
-torchaudio.USE_SOUNDFILE_LEGACY_INTERFACE = False
-torchaudio.set_audio_backend("soundfile")
 
 from torchaudio.transforms import MFCC, Resample
 from torch import Tensor

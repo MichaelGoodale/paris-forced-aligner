@@ -17,7 +17,6 @@ def train_model():
     parser.add_argument("--corpus_path", type=str, required=True)
     parser.add_argument("--corpus_type", default="librispeech", choices=['librispeech', 'youtube'])
     parser.add_argument("--gpu", action='store_true')
-    parser.add_argument("--n_proc", type=int, default=1)
 
     parser.add_argument("--learning_rate", type=float, default=3e-5)
     parser.add_argument("--batch_size", type=int, default=20)
@@ -35,7 +34,7 @@ def train_model():
     if args.corpus_type == 'librispeech':
         if args.dictionary != "librispeech":
             parser.error("You must use --dictionary librispeech when using --corpus librispeech")
-        corpus = LibrispeechCorpus(args.corpus_path, n_proc=args.n_proc)
+        corpus = LibrispeechCorpus(args.corpus_path)
     elif arg.corpus_type == 'youtube':
         corpus = YoutubeCorpus(args.corpus_path)
 
@@ -48,7 +47,6 @@ def train_model():
         device = 'cuda:0'
     else:
         device = 'cpu'
-
     train(model, corpus, 
         output_directory=args.output_dir,
         batch_size=args.batch_size,
