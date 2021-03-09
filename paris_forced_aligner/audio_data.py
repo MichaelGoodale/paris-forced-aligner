@@ -19,10 +19,11 @@ class OutOfVocabularyException(Exception):
 
 class PronunciationDictionary:
     silence = "<SIL>"
+    OOV = "<OOV>"
 
     def __init__(self):
         self.lexicon: Mapping[str, List[str]] = {}
-        self.phonemic_inventory: Set[str] = set([PronunciationDictionary.silence])
+        self.phonemic_inventory: Set[str] = set([PronunciationDictionary.silence, PronunciationDictionary.OOV])
         self.phone_to_phoneme: Mapping[str, str] = {}
         self.load_lexicon()
         self.phonemic_mapping: Mapping[str, int] = {phone: i+1 for i, phone in enumerate(sorted(self.phonemic_inventory))}
@@ -88,18 +89,13 @@ class AudioFile:
     def __init__(self, filename: str, transcription: str, pronunciation_dictionary: PronunciationDictionary,
             fileobj: Optional[BinaryIO] = None,
             wavobj: Optional[Tuple[Tensor, int]] = None,
-            extract_features: bool = False,
-            raise_on_oov: bool=True,
-            feature_extractor: Callable[[Tensor], Tensor] = MFCC()):
+            raise_on_oov: bool=True):
 
         self.filename = filename
         self.pronunciation_dictionary = pronunciation_dictionary
         self.load_audio(fileobj, wavobj)
 
-        if extract_features:
-            self.features = feature_extractor(self.wav)
-        else:
-            self.features = self.wav
+        self.features = self.wav
 
         #Treat words with hyphens as two words.
         transcription = transcription.replace('-', ' ')
@@ -131,7 +127,7 @@ class AudioFile:
                 if raise_on_oov:
                     raise OutOfVocabularyException(f"{word} is not present in the librispeech lexicon")
                 else:
-                    new_transcription += self.pronunciation_dictionary.lexicon["OOV"] 
+                    new_transcription.append(self.pronunciation_dictionary.OOV)
             new_transcription.append(PronunciationDictionary.silence)
 
         new_transcription_tensor = torch.tensor([self.pronunciation_dictionary.phonemic_mapping[x] for x in new_transcription])

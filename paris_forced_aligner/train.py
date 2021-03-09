@@ -5,7 +5,6 @@ from paris_forced_aligner.model import PhonemeDetector
 
 import torch
 from torch.nn import CTCLoss, CrossEntropyLoss
-from torch.optim.lr_scheduler import StepLR
 
 def get_cross_entropy_label(X):
     '''Ensure to pass detached X'''
@@ -36,10 +35,11 @@ def self_framewise_loss(X):
 def train(model: PhonemeDetector, 
         corpus: CorpusClass,
         output_directory:str = "models",
+        lr:float = 3e-5,
         accumulate_steps: int = 20,
         n_steps:int = 30000,
         unfreeze_after:int = 10000,
-        zero_lambda_until:int = 20000,
+        zero_lambda_until:int = 10000,
         lambda_param:float = 0.1,
         output_model_every:int = 1000,
         device:str = 'cpu'):
@@ -53,13 +53,13 @@ def train(model: PhonemeDetector,
     model.to(device)
     if device != 'cpu':
         model.wav2vec.cuda()
+
     model.train()
-    model.freeze_encoder()
+    model.freeze_wav2vec()
 
     ctc_loss_fn = CTCLoss()
     cross_entropy_fn = CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-    lr_scheduler = StepLR(optimizer, 8000, 0.1)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     losses = []
 
@@ -72,7 +72,7 @@ def train(model: PhonemeDetector,
                 audio_file.tensor_transcription.to(device)
 
                 X = model(audio_file.wav)
-                ctc_loss = ctc_loss_fn(X, audio_file.tensor_transcription.unsqueeze(0), (X.shape[0],), (audio_file.tensor_transcription.shape[0], )) 
+                ctc_loss = ctc_loss_fn(X, audio_file.tensor_transcription.unsqueeze(0), (X.shape[0],), (audio_file.tensor_transcription.shape[0],)) 
 
                 if i > zero_lambda_until:
                     cross_loss = self_framewise_loss(X)
@@ -99,7 +99,6 @@ def train(model: PhonemeDetector,
                     torch.save(model.state_dict(), f"{output_directory}/{i}_model.pt")
 
                 i += 1
-                lr_scheduler.step()
                 if i > n_steps: 
                     break
 

@@ -116,7 +116,7 @@ class YoutubeCorpus(CorpusClass):
 
 
 class LibrispeechCorpus(CorpusClass):
-    def __init__(self, corpus_path: str, n_proc: int = cpu_count(), raise_on_oov: bool = True):
+    def __init__(self, corpus_path: str, n_proc: int = cpu_count(), raise_on_oov: bool = False):
         super().__init__(corpus_path, LibrispeechDictionary(), raise_on_oov, False)
         self.n_proc = n_proc
 
@@ -138,19 +138,16 @@ class LibrispeechCorpus(CorpusClass):
                             line = line.decode('utf-8')
                             filename, transcription = line.strip().split(' ', 1)
                             filename = LibrispeechCorpus._get_flac_filepath(directory_path, filename)
-                            try:
-                                with tar_file.extractfile(filename) as wav_obj:
-                                    audio = AudioFile(filename, transcription, self.pronunciation_dictionary, fileobj=wav_obj, raise_on_oov=self.raise_on_oov)
-                                yield audio
-                            except OutOfVocabularyException:
-                                pass
+                            with tar_file.extractfile(filename) as wav_obj:
+                                audio = AudioFile(filename, transcription, self.pronunciation_dictionary, fileobj=wav_obj, raise_on_oov=self.raise_on_oov)
+                            yield audio
 
         else:
             BATCH_SIZE = self.n_proc
             with Pool(self.n_proc) as p:
                 for i in range(len(text_files)//BATCH_SIZE):
                     text_file_batch = text_files[BATCH_SIZE*i:BATCH_SIZE*i+BATCH_SIZE]
-                    for directory in p.imap_unordered(partial(LibrispeechCorpus._extract_directory, self.corpus_path, directory_path), text_file_batch):
+                    for directory in p.imap_unordered(partial(LibrispeechCorpus._extract_directory, self.corpus_path, directory_path, self.pronunciation_dictionary, self.raise_on_oov), text_file_batch):
                         for audio in directory:
                             yield audio
 
@@ -158,7 +155,7 @@ class LibrispeechCorpus(CorpusClass):
         top_dir, mid_dir, _ = file_name.split('-')
         return '{}/{}/{}/{}.flac'.format(directory_path, top_dir, mid_dir, file_name)
 
-    def _extract_directory(corpus_path, directory_path, text_path):
+    def _extract_directory(corpus_path, directory_path, pronunciation_dictionary, raise_on_oov, text_path):
         returns = []
         with tarfile.open(corpus_path, 'r:gz', encoding='utf-8') as tar_file:
             with tar_file.extractfile(text_path) as f:
@@ -166,12 +163,9 @@ class LibrispeechCorpus(CorpusClass):
                     line = line.decode('utf-8')
                     filename, transcription = line.strip().split(' ', 1)
                     filename = LibrispeechCorpus._get_flac_filepath(directory_path, filename)
-                    try:
-                        with tar_file.extractfile(filename) as wav_obj:
-                            audio = AudioFile(filename, transcription, self.pronunciation_dictionary, fileobj=wav_obj, raise_on_oov=self.raise_on_oov)
-                        returns.append(audio)
-                    except OutOfVocabularyException:
-                        pass
+                    with tar_file.extractfile(filename) as wav_obj:
+                        audio = AudioFile(filename, transcription, pronunciation_dictionary, fileobj=wav_obj, raise_on_oov=raise_on_oov)
+                    returns.append(audio)
         return returns
 
 class BuckeyeCorpus(CorpusClass):

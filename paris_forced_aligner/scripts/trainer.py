@@ -1,5 +1,7 @@
 import argparse
 
+import torch
+
 from paris_forced_aligner.utils import download_data_file, data_directory
 from paris_forced_aligner.scripts.utils import process_download_args, add_download_args, add_dictionary_args, process_dictionary_args
 from paris_forced_aligner.train import train
@@ -16,6 +18,14 @@ def train_model():
     parser.add_argument("--corpus_type", default="librispeech", choices=['librispeech', 'youtube'])
     parser.add_argument("--gpu", action='store_true')
     parser.add_argument("--n_proc", type=int, default=1)
+
+    parser.add_argument("--learning_rate", type=float, default=3e-5)
+    parser.add_argument("--accumulate_steps", type=int, default=20)
+    parser.add_argument("--n_steps", type=int, default=30000)
+    parser.add_argument("--unfreeze_after", type=int, default=10000)
+    parser.add_argument("--zero_lambda_until", type=int, default=20000)
+    parser.add_argument("--lambda", type=float, default=0.1)
+    parser.add_argument("--output_model_every", type=int, default=1000)
 
     args = parser.parse_args()
     wav2vec_model_path = process_download_args(parser, args)
@@ -40,6 +50,13 @@ def train_model():
 
     train(model, corpus, 
         output_directory=args.output_dir,
+        lr=args.learning_rate,
+        accumulate_steps=args.accumulate_steps,
+        n_steps=args.n_steps,
+        unfreeze_after=args.unfreeze_after,
+        zero_lambda_until=args.zero_lambda_until,
+        lambda_param=args.lambda,
+        output_model_every=args.output_model_every,
         device=device)
 
 if __name__ == "__main__":
