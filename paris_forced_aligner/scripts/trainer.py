@@ -24,7 +24,7 @@ def train_model():
     parser.add_argument("--n_steps", type=int, default=30000)
     parser.add_argument("--unfreeze_after", type=int, default=10000)
     parser.add_argument("--zero_lambda_until", type=int, default=20000)
-    parser.add_argument("--lambda", type=float, default=0.1)
+    parser.add_argument("--lambda_param", type=float, default=0.1)
     parser.add_argument("--output_model_every", type=int, default=1000)
 
     args = parser.parse_args()
@@ -55,7 +55,7 @@ def train_model():
         n_steps=args.n_steps,
         unfreeze_after=args.unfreeze_after,
         zero_lambda_until=args.zero_lambda_until,
-        lambda_param=args.lambda,
+        lambda_param=args.lambda_param,
         output_model_every=args.output_model_every,
         device=device)
 
