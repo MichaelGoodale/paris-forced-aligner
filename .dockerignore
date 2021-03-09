@@ -1,8 +1,15 @@
+.git
+data
+env
+env2
+models
+models_new
+paris_forced_aligner/models
+*.pt
 #PFA stuff
 models/
 data/
 
-*.pt
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
