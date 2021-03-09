@@ -32,11 +32,32 @@ def get_cross_entropy_label(X):
 def self_framewise_loss(X):
     return cross_entropy_fn(X.squeeze(), get_cross_entropy_label(X.detach().squeeze()))
 
+def batched_audio_files(corpus, batch_size=1, device='cpu'):
+    batch = []
+    for audio_file in corpus:
+        batch.append(audio_file)
+        if len(batch) == batch_size:
+            wav_lengths = torch.tensor([a.wav.shape[1] for a in batch])
+            input_wavs = torch.zeros((batch_size, wav_lengths.max()))
+            padding_mask = torch.ones((batch_size, wav_lengths.max()))
+
+            for i, (length, a) in enumerate(zip(wav_lengths, batch)):
+                input_wavs[i, :length] = a.wav
+                padding_mask[i, :length] = 0
+
+            transcription_lengths = torch.tensor([a.tensor_transcription.shape[0] for a in batch])
+            transcriptions = torch.zeros((batch_size, transcription_lengths.max()))
+            for i, (length, a) in enumerate(zip(transcription_lengths, batch)):
+                transcriptions[i, :length] = a.tensor_transcription
+            yield input_wavs, padding_mask, transcriptions, transcription_lengths
+            batch = []
+
 def train(model: PhonemeDetector, 
         corpus: CorpusClass,
         output_directory:str = "models",
+        batch_size:int = 20,
         lr:float = 3e-5,
-        accumulate_steps: int = 20,
+        accumulate_steps: int = 1,
         n_steps:int = 30000,
         unfreeze_after:int = 10000,
         zero_lambda_until:int = 10000,
@@ -67,11 +88,9 @@ def train(model: PhonemeDetector,
     with open(f"{output_directory}/log.txt", 'w') as f:
         i = 0
         while i < n_steps:
-            for audio_file in corpus:
-                audio_file.move_to_device(device)
-
-                X = model(audio_file.wav)
-                ctc_loss = ctc_loss_fn(X, audio_file.tensor_transcription.unsqueeze(0), (X.shape[0],), (audio_file.tensor_transcription.shape[0],)) 
+            for input_wavs, wav_lengths, transcriptions, transcription_lengths in batched_audio_files(corpus, batch_size=batch_size, device=device):
+                X, X_lengths = model(input_wavs, padding_mask=wav_lengths)
+                ctc_loss = ctc_loss_fn(X, transcriptions, X_lengths, transcription_lengths)
 
                 if i > zero_lambda_until:
                     cross_loss = self_framewise_loss(X)

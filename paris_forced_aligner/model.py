@@ -18,11 +18,14 @@ class PhonemeDetector(nn.Module):
         self.wav2vec = load_wav2vec_model(filepath)
         self.fc = nn.Linear(768, vocab_size)#TODO: Find dynamic way to get this.
 
-    def forward(self, wav_input_16khz):
-        c = self.wav2vec.forward(wav_input_16khz, mask=False, features_only=True)
-        c = c['x'].transpose(0,1)
-        c = self.fc(c)
-        return F.log_softmax(c, dim=-1)
+    def forward(self, wav_input_16khz, padding_mask=None):
+        c = self.wav2vec.forward(wav_input_16khz, mask=False, features_only=True, padding_mask=padding_mask)
+        x = c['x'].transpose(0,1)
+        x = self.fc(x)
+        if padding_mask is not None:
+            x_lengths = (1 - c['padding_mask'].long()).sum(-1)
+            return F.log_softmax(x, dim=-1), x_lengths
+        return F.log_softmax(x, dim=-1)
 
     def get_idx_in_sample(self, idx: int) -> int:
         return PhonemeDetector.wav2vec_to_16khz * idx 

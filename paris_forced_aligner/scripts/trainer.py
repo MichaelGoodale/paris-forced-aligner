@@ -20,7 +20,8 @@ def train_model():
     parser.add_argument("--n_proc", type=int, default=1)
 
     parser.add_argument("--learning_rate", type=float, default=3e-5)
-    parser.add_argument("--accumulate_steps", type=int, default=20)
+    parser.add_argument("--batch_size", type=int, default=20)
+    parser.add_argument("--accumulate_steps", type=int, default=1)
     parser.add_argument("--n_steps", type=int, default=30000)
     parser.add_argument("--unfreeze_after", type=int, default=10000)
     parser.add_argument("--zero_lambda_until", type=int, default=20000)
@@ -50,6 +51,7 @@ def train_model():
 
     train(model, corpus, 
         output_directory=args.output_dir,
+        batch_size=args.batch_size,
         lr=args.learning_rate,
         accumulate_steps=args.accumulate_steps,
         n_steps=args.n_steps,
