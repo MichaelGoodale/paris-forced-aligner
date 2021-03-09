@@ -95,8 +95,6 @@ class AudioFile:
         self.pronunciation_dictionary = pronunciation_dictionary
         self.load_audio(fileobj, wavobj)
 
-        self.features = self.wav
-
         #Treat words with hyphens as two words.
         transcription = transcription.replace('-', ' ')
 
@@ -135,3 +133,7 @@ class AudioFile:
 
     def get_word_transcription(self, transcription: str) -> List[str]:
         return transcription.split(' ')
+
+    def move_to_device(self, device:str):
+        self.wav = self.wav.to(device)
+        self.tensor_transcription = self.tensor_transcription.to(device)

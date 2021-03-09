@@ -68,8 +68,7 @@ def train(model: PhonemeDetector,
         i = 0
         while i < n_steps:
             for audio_file in corpus:
-                audio_file.wav.to(device)
-                audio_file.tensor_transcription.to(device)
+                audio_file.move_to_device(device)
 
                 X = model(audio_file.wav)
                 ctc_loss = ctc_loss_fn(X, audio_file.tensor_transcription.unsqueeze(0), (X.shape[0],), (audio_file.tensor_transcription.shape[0],)) 
