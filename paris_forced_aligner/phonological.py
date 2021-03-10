@@ -27,6 +27,7 @@ class Word:
 class Silence:
     start: int
     end: int
+    label: str = "<SIL>"
 
 
 @dataclass

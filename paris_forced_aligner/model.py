@@ -43,7 +43,10 @@ class PhonemeDetector(nn.Module):
         return F.log_softmax(x, dim=-1)
 
     def get_idx_in_sample(self, idx: int) -> int:
-        return self.get_upscaled_length(PhonemeDetector.wav2vec_to_16khz * idx)
+        return PhonemeDetector.wav2vec_to_16khz * self.get_upscaled_length(idx)
+
+    def get_sample_in_idx(self, sample_idx: int) -> int:
+        return self.get_upscaled_length(sample_idx // PhonemeDetector.wav2vec_to_16khz)
     
     def freeze_encoder(self):
         for name, param in self.wav2vec.named_parameters():

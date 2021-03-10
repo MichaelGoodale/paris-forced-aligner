@@ -153,7 +153,7 @@ class BuckeyeCorpus(CorpusClass):
         if isinstance(word, Silence):
             word = Silence(int(word.start * sr), int(word.end *sr))
         else:
-            word.label = word.label.upper()
+            word.label = word.label.strip().replace('-', 'X').replace(' ', 'X').upper() 
             for i, phone in enumerate(word.phones):
                 phone.start = int(phone.start * sr)
                 phone.end = int(phone.end * sr)
@@ -162,7 +162,8 @@ class BuckeyeCorpus(CorpusClass):
                     if phone.label == "NX":
                         phone.label = "N"
                     elif phone.label == "DX":
-                        phone.label = word_buckeye.phonemic[i].upper()
+                        if i < len(word_buckeye.phonemic):
+                            phone.label = word_buckeye.phonemic[i].upper()
                         if phone.label != 'T' or phone.label != 'D':
                             phone.label = 'T' #Good enough!
                     elif phone.label == "EN":
@@ -229,3 +230,4 @@ class BuckeyeCorpus(CorpusClass):
                                         yield audio
                                 paris_words = []
                                 start = word.beg
+
