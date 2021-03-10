@@ -2,7 +2,7 @@ import os
 import argparse
 import warnings
 from paris_forced_aligner.utils import download_data_file, data_directory
-from paris_forced_aligner.scripts.utils import process_download_args, add_download_args, add_dictionary_args, process_dictionary_args
+from paris_forced_aligner.scripts.utils import process_model_args, add_model_args, add_dictionary_args, process_dictionary_args
 
 from paris_forced_aligner.inference import ForcedAligner
 from paris_forced_aligner.corpus import LibrispeechCorpus, YoutubeCorpus
@@ -17,9 +17,8 @@ def read_file_list(path):
 
 def align():
     parser = argparse.ArgumentParser(description='Train forced aligner')
-    add_download_args(parser)
+    add_model_args(parser)
     add_dictionary_args(parser)
-    parser.add_argument("--checkpoint", type=str, required=True)
 
     parser.add_argument("--audio_file", type=str)
     parser.add_argument("--transcription", type=str)
@@ -38,19 +37,19 @@ def align():
     parser.add_argument("--in_seconds", action='store_true')
 
     args = parser.parse_args()
-    wav2vec_model_path = process_download_args(parser, args)
     pronunciation_dictionary, vocab_size = process_dictionary_args(parser, args)
+    model = process_model_args(parser, args, vocab_size)
 
     if not args.audio_file and not args.input_files and not args.youtube:
         parser.error("You must provide either --audio_file or --input_files or --youtube or any combination thereof.")
-
+model
     if args.audio_file and not args.transcription:
         parser.error("You must provide a transcription with --transcription for --audio_file")
 
     if args.input_files and not args.transcripts:
         parser.error("You must provide a file with transcriptions with --transcripts for --input_files")
 
-    forced_aligner = ForcedAligner(args.checkpoint, wav2vec_model_path, vocab_size)
+    forced_aligner = ForcedAligner(model)
     
     if args.audio_file:
         audio_file = AudioFile(args.audio_file, args.transcription, pronunciation_dictionary)

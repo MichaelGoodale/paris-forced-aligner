@@ -6,12 +6,9 @@ from paris_forced_aligner.phonological import Utterance, Phone, Word, Silence
 
 class ForcedAligner:
 
-    def __init__(self, filepath: str, wav2vec_file: str, vocab_size: int, n_beams: int = 50):
-        model = PhonemeDetector(wav2vec_file, vocab_size)
-        model.load_state_dict(torch.load(filepath, map_location=torch.device('cpu')))
+    def __init__(model: PhonemeDetector, n_beams: int = 50):
         self.model = model
         self.BEAMS = n_beams
-
 
     def align_file(self, audio: AudioFile):
         X = self.model(audio.wav)

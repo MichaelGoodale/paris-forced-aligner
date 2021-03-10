@@ -3,6 +3,7 @@ import os
 from typing import Tuple
 from paris_forced_aligner.audio_data import PronunciationDictionary, TSVDictionary, LibrispeechDictionary
 from paris_forced_aligner.utils import data_directory, download_data_file
+from paris_forced_aligner.model import PhonemeDetector
 
 wav2vec_urls = {
         'small': ('wav2vec2_small.pt', 'https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_small.pt'),
@@ -10,10 +11,13 @@ wav2vec_urls = {
         'multi-lingual': ('wav2vec_multiling.pt', 'https://dl.fbaipublicfiles.com/fairseq/wav2vec/xlsr_53_56k.pt')
         }
 
-def add_download_args(parser: argparse.ArgumentParser):
+def add_model_args(parser: argparse.ArgumentParser):
     parser.add_argument('--wav2vec_model',  choices=list(wav2vec_urls.keys()))
     parser.add_argument('--download-wav2vec', action='store_true')
     parser.add_argument('--wav2vec_model_path', type=str)
+    parser.add_argument('--checkpoint', type=str)
+    parser.add_argument('--upscale', type=int, default=2)
+    parser.add_argument('--internal_vector_dim', type=int, default=128)
 
 def add_dictionary_args(parser: argparse.ArgumentParser):
     parser.add_argument("--dictionary", default='librispeech', choices=['librispeech', 'librispeech_stressed', 'tsv'])
@@ -30,7 +34,7 @@ def process_dictionary_args(parser: argparse.ArgumentParser, args: argparse.Name
         dictionary = TSVDictionary()
     return dictionary, dictionary.vocab_size()
 
-def process_download_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> str:
+def process_model_args(parser: argparse.ArgumentParser, args: argparse.Namespace, vocab_size: int) -> str:
     if args.wav2vec_model and args.wav2vec_model_path:
         parser.error("Please provide a wav2vec_model or wav2vec_model_path, not both.")
 
@@ -49,4 +53,7 @@ def process_download_args(parser: argparse.ArgumentParser, args: argparse.Namesp
     else:
         parser.error("You must pass either a wav2vec_model or wav2vec_model_path")
 
-    return wav2vec_model_path
+    model = PhonemeDetector(wav2vec_model_path, vocab_size, args.upscale, args.internal_vector_dim)
+    if args.checkpoint:
+        model.load_state_dict(torch.load(args.checkpoint, map_location=torch.device('cpu')))
+    return model

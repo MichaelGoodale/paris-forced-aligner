@@ -2,7 +2,7 @@ import os
 import argparse
 import warnings
 from paris_forced_aligner.utils import download_data_file, data_directory
-from paris_forced_aligner.scripts.utils import process_download_args, add_download_args, add_dictionary_args, process_dictionary_args
+from paris_forced_aligner.scripts.utils import process_model_args, add_model_args, add_dictionary_args, process_dictionary_args
 
 from paris_forced_aligner.inference import ForcedAligner
 from paris_forced_aligner.corpus import BuckeyeCorpus
@@ -10,16 +10,15 @@ from paris_forced_aligner.audio_data import AudioFile, LibrispeechDictionary
 
 def evaluate():
     parser = argparse.ArgumentParser(description='Train forced aligner')
-    add_download_args(parser)
+    add_model_args(parser)
     add_dictionary_args(parser)
-    parser.add_argument("--checkpoint", type=str, required=True)
     parser.add_argument("--buckeye_dir", type=str, default="~/Documents/Buckeye")
 
     args = parser.parse_args()
-    wav2vec_model_path = process_download_args(parser, args)
     pronunciation_dictionary, vocab_size = process_dictionary_args(parser, args)
+    model = process_model_args(parser, args, vocab_size)
 
-    forced_aligner = ForcedAligner(args.checkpoint, wav2vec_model_path, vocab_size)
+    forced_aligner = ForcedAligner(model)
 
     word_mean_start_difference = 0.0
     word_mean_end_difference = 0.0
