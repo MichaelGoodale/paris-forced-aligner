@@ -11,6 +11,7 @@ from typing import Callable, Union, BinaryIO, Optional, Mapping, List, Set, Tupl
 
 from paris_forced_aligner.utils import data_directory, download_data_file
 from paris_forced_aligner.ipa_data import arpabet_to_ipa
+from paris_forced_aligner.phonological import Utterance
 
 class OutOfVocabularyException(Exception):
     """Raise for my specific kind of exception"""
@@ -36,6 +37,11 @@ class PronunciationDictionary:
 
     def index_to_phone(self, idx: int) -> str:
         return self.index_mapping[idx]
+
+    def add_words_from_utterance(self, utterance: Utterance):
+        for word in utterance.words:
+            self.lexicon[word.label] = [p.label for p in word.phones]
+
 
 class LibrispeechDictionary(PronunciationDictionary):
 

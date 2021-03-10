@@ -146,17 +146,35 @@ class BuckeyeCorpus(CorpusClass):
                 wav, sr = torchaudio.load(wav_file)
         return wav, sr
 
-    def convert_to_arpabet(word, sr=16000):
+    def convert_to_arpabet(word, word_buckeye, sr=16000):
         '''Handles converting from seconds to frames and also handles any phoneme differences'''
         if isinstance(word, Silence):
             word = Silence(int(word.start * sr), int(word.end *sr))
         else:
             word.label = word.label.upper()
-            for phone in word.phones:
+            for i, phone in enumerate(word.phones):
                 phone.start = int(phone.start * sr)
                 phone.end = int(phone.end * sr)
                 if phone.label is not None:
                     phone.label = phone.label.upper()
+                    if phone.label == "NX":
+                        phone.label = "N"
+                    elif phone.label == "DX":
+                        phone.label = word_buckeye.phonemic[i].upper()
+                        if phone.label != 'T' or phone.label != 'D':
+                            phone.label = 'T' #Good enough!
+                    elif phone.label == "EN":
+                        phone.label = "N"
+                    elif phone.label == "EM":
+                        phone.label = "M"
+                    elif phone.label == "EL":
+                        phone.label = "L"
+                    elif phone.label == "TQ": #Hope these aren't epenthetic
+                        phone.label = "T"
+                    elif len(phone.label) == 3 and phone.label.endswith("N"):
+                        phone.label = phone.label[:2] #No nasal phone >:(
+                    elif len(phone.label) >= 3:
+                        phone.label = PronunciationDictionary.silence
                 else:
                     phone.label = PronunciationDictionary.silence
         return word
@@ -196,11 +214,12 @@ class BuckeyeCorpus(CorpusClass):
                             else:
                                 paris_word = Word([Phone(p.seg, p.beg, p.end) for p in word.phones], word.orthography)
                                 #TODO: Add dynamic dictionary words w/ correct pronunciation (maybe)
-                            paris_words.append(BuckeyeCorpus.convert_to_arpabet(paris_word))
+                            paris_words.append(BuckeyeCorpus.convert_to_arpabet(paris_word, word))
 
                             if word.beg - start > 10.0 and isinstance(word, buckeye.containers.Pause):
                                 utterance = Utterance(BuckeyeCorpus.merge_silences(paris_words))
                                 if utterance.words != []:
+                                    self.pronunciation_dictionary.add_words_from_utterance(utterance)
                                     audio = AudioFile(track.name, utterance.transcription, self.pronunciation_dictionary, wavobj=(wav[:, utterance.start:utterance.end], 16000), raise_on_oov=self.raise_on_oov)
                                     if return_gold_labels:
                                         yield audio, utterance
