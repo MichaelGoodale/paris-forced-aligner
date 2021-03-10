@@ -22,29 +22,24 @@ class PhonemeDetector(nn.Module):
         self.conv1 = nn.Conv1d(768, internal_vector_size, kernel_size*upscale)
         self.batch_norm1 = nn.BatchNorm1d(internal_vector_size)
 
-        self.time_transform2 = nn.Upsample(scale_factor=upscale, mode='linear')
-        self.conv2 = nn.Conv1d(internal_vector_size, internal_vector_size, kernel_size*upscale)
-        self.batch_norm2 = nn.BatchNorm1d(internal_vector_size)
-
         self.upscale = upscale 
         self.kernel_size = kernel_size
         self.fc = nn.Linear(internal_vector_size, vocab_size)
 
     def get_upscaled_length(self, length: int) -> int:
-        return self.upscale*(self.upscale*length - self.kernel_size*self.upscale + 1) - self.kernel_size * self.upscale + 1
+        return self.upscale*length - self.kernel_size*self.upscale + 1
 
     def forward(self, wav_input_16khz, padding_mask=None):
         c = self.wav2vec.forward(wav_input_16khz, mask=False, features_only=True, padding_mask=padding_mask)
         #c['x'] = (N, L, C)
         x = self.time_transform(c['x'].transpose(1,2))
         x = F.gelu(self.batch_norm1(self.conv1(x)))
-        x = self.time_transform2(x)
-        x = F.gelu(self.batch_norm2(self.conv2(x)))
         x = x.transpose(1,2).transpose(0,1)
         x = self.fc(x)
+
         if padding_mask is not None:
             x_lengths = self.get_upscaled_length((1 - c['padding_mask'].long()).sum(-1))
-            return F.log_softmax(x, dim=-1), x_lengths
+            return F.log_softmax(x, dim=-1).to(torch.float64), x_lengths
         return F.log_softmax(x, dim=-1)
 
     def get_idx_in_sample(self, idx: int) -> int:
@@ -65,5 +60,4 @@ class PhonemeDetector(nn.Module):
 
     def init_weights(self):
         nn.init.xavier_uniform_(self.conv1.weight)
-        nn.init.xavier_uniform_(self.conv2.weight)
         nn.init.xavier_uniform_(self.fc.weight)
