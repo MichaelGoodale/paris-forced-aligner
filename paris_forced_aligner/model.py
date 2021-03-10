@@ -24,7 +24,7 @@ class PhonemeDetector(nn.Module):
     def forward(self, wav_input_16khz, padding_mask=None):
         c = self.wav2vec.forward(wav_input_16khz, mask=False, features_only=True, padding_mask=padding_mask)
         x = self.time_transform(c['x'].transpose(1,2))
-        x = x.transpose(1,2).transpose(0,1)
+        x = F.gelu(x.transpose(1,2).transpose(0,1))
         x = self.fc(x)
         if padding_mask is not None:
             x_lengths = (1 - c['padding_mask'].long()).sum(-1) * self.conv_offset
