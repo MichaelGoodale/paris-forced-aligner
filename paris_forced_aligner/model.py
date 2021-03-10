@@ -13,22 +13,26 @@ def load_wav2vec_model(filepath):
 class PhonemeDetector(nn.Module):
     wav2vec_to_16khz = 320
 
-    def __init__(self, filepath, vocab_size):
+    def __init__(self, filepath, vocab_size, stride_and_kernel=8, internel_vector_size=768):
         super().__init__()
         self.wav2vec = load_wav2vec_model(filepath)
-        self.fc = nn.Linear(768, vocab_size)#TODO: Find dynamic way to get this.
+        #TODO: Find dynamic way to get this.
+        self.time_transform = nn.ConvTranspose1d(768, internel_vector_size, stride_and_kernel, stride_and_kernel)
+        self.conv_offset = stride_and_kernel
+        self.fc = nn.Linear(internel_vector_size, vocab_size)
 
     def forward(self, wav_input_16khz, padding_mask=None):
         c = self.wav2vec.forward(wav_input_16khz, mask=False, features_only=True, padding_mask=padding_mask)
-        x = c['x'].transpose(0,1)
+        x = self.time_transform(c['x'].transpose(1,2))
+        x = x.transpose(1,2).transpose(0,1)
         x = self.fc(x)
         if padding_mask is not None:
-            x_lengths = (1 - c['padding_mask'].long()).sum(-1)
+            x_lengths = (1 - c['padding_mask'].long()).sum(-1) * self.conv_offset
             return F.log_softmax(x, dim=-1), x_lengths
         return F.log_softmax(x, dim=-1)
 
     def get_idx_in_sample(self, idx: int) -> int:
-        return PhonemeDetector.wav2vec_to_16khz * idx 
+        return PhonemeDetector.wav2vec_to_16khz * idx * self.conv_offset
     
     def freeze_encoder(self):
         for name, param in self.wav2vec.named_parameters():
