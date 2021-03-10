@@ -1,6 +1,9 @@
 import argparse
 import os 
 from typing import Tuple
+
+import torch
+
 from paris_forced_aligner.audio_data import PronunciationDictionary, TSVDictionary, LibrispeechDictionary
 from paris_forced_aligner.utils import data_directory, download_data_file
 from paris_forced_aligner.model import PhonemeDetector

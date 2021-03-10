@@ -143,7 +143,9 @@ class BuckeyeCorpus(CorpusClass):
     def _extract_from_zip(self, zip_dir, track_name, speaker_name):
         with ZipFile(zip_dir.open(f"{speaker_name}/{track_name}.zip")) as sound_dir:
             with sound_dir.open(f"{track_name}.wav") as wav_file:
-                wav, sr = torchaudio.load(wav_file)
+                with tempfile.NamedTemporaryFile() as f:
+                    f.write(wav_file.read())
+                    wav, sr = torchaudio.load(f.name)
         return wav, sr
 
     def convert_to_arpabet(word, word_buckeye, sr=16000):
