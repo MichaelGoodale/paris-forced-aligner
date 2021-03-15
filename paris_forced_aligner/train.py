@@ -6,6 +6,14 @@ from paris_forced_aligner.model import PhonemeDetector
 
 import torch
 from torch.nn import CTCLoss, CrossEntropyLoss
+import torch.nn.functional as F
+
+def ctc_tutor(X, transcriptions, X_lengths, transcription_lengths, tutor_X, tutor_lengths, tutor_y, lambda_coefficent=0.5):
+    tutor_loss = F.ctc_loss(tutor_X, transcriptions, tutor_lengths, transcription_lengths)
+    ctc_loss = F.ctc_loss(X, transcriptions, X_lengths, transcription_lengths)
+    cross_entropy = F.cross_entropy(X.transpose(0, 1).transpose(1,2), tutor_y)
+    return tutor_loss, (1-lambda_coefficent)*ctc_loss + lambda_coefficent*cross_entropy
+
 
 def prepare_audio_batch(batch):
     wav_lengths = torch.tensor([a.wav.shape[1] for a in batch])
@@ -61,6 +69,7 @@ def train(model: PhonemeDetector,
         n_steps:int = 30000,
         unfreeze_after:int = 10000,
         output_model_every:int = 1000,
+        starting_lambda = 0.5,
         device:str = 'cpu'):
     ''' Example usage:
 
@@ -75,12 +84,14 @@ def train(model: PhonemeDetector,
 
     model.train()
     model.freeze_wav2vec()
+    lambda_coefficent = starting_lambda
 
     ctc_loss_fn = CTCLoss()
     cross_entropy = CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     losses = []
+    tutor_losses = []
 
     unfrozen = False
     with open(f"{output_directory}/log.txt", 'w') as f:
@@ -90,7 +101,7 @@ def train(model: PhonemeDetector,
                 input_wavs = input_wavs.to(device)
                 wav_lengths = wav_lengths.to(device)
 
-                X, X_lengths = model(input_wavs, padding_mask=wav_lengths)
+                X, tutor_X, tutor_y, X_lengths, tutor_lengths = model(input_wavs, padding_mask=wav_lengths, tutor=True)
 
                 if corpus.return_gold_labels:
                     transcriptions_mat = -100*torch.ones((len(X_lengths), X_lengths.max()), dtype=torch.long)
@@ -109,15 +120,17 @@ def train(model: PhonemeDetector,
                 else:
                     transcriptions = transcriptions.to(device)
                     transcription_lengths = transcription_lengths.to(device)
-                    loss = ctc_loss_fn(X, transcriptions, X_lengths, transcription_lengths)
+                    tutor_loss, loss = ctc_tutor(X, transcriptions, X_lengths, transcription_lengths, tutor_X, tutor_lengths, tutor_y, lambda_coefficent=lambda_coefficent)
 
+                tutor_loss.backward()
                 loss.backward()
                 losses.append(loss.item())
+                tutor_losses.append(tutor_loss.item())
 
                 if i % accumulate_steps == 0:
                     optimizer.step()
                     optimizer.zero_grad()
-                    print(i, sum(losses)/len(losses))
+                    print(i, sum(tutor_losses)/len(tutor_losses), sum(losses)/len(losses))
                     f.write(f'{i} {sum(losses)/len(losses)}\n')
                     losses = []
 
