@@ -202,7 +202,9 @@ class BuckeyeCorpus(CorpusClass):
 
     def extract_files(self, return_gold_labels):
         for d, s_d, files in os.walk(self.corpus_path):
-            for f in filter(lambda x: x.endswith('.zip'), files):
+            speaker_files = list(filter(lambda x: x.endswith('.zip'), files))
+            random.shuffle(speaker_files)
+            for f in speaker_files:
                 zip_path = os.path.join(d, f)
                 speaker = buckeye.Speaker.from_zip(zip_path)
                 with ZipFile(zip_path) as zip_dir:
@@ -225,9 +227,13 @@ class BuckeyeCorpus(CorpusClass):
                                     self.pronunciation_dictionary.add_words_from_utterance(utterance)
                                     audio = AudioFile(track.name, utterance.transcription, self.pronunciation_dictionary, wavobj=(wav[:, utterance.start:utterance.end], 16000), raise_on_oov=self.raise_on_oov)
                                     if return_gold_labels:
+                                        utt_start = utterance.start 
+                                        for base in utterance.base_units:
+                                            base.start -= utt_start
+                                            base.end -= utt_start
                                         yield audio, utterance
                                     else:
                                         yield audio
                                 paris_words = []
-                                start = word.beg
+                                start = utterance.end + utt_start
 

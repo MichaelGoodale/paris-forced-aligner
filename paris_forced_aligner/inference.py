@@ -6,14 +6,13 @@ from paris_forced_aligner.phonological import Utterance, Phone, Word, Silence
 
 class ForcedAligner:
 
-    def __init__(model: PhonemeDetector, n_beams: int = 50):
+    def __init__(self, model: PhonemeDetector, n_beams: int = 250):
         self.model = model
         self.BEAMS = n_beams
 
     def align_file(self, audio: AudioFile):
         X = self.model(audio.wav)
         y = audio.tensor_transcription
-
         beams = [(0, y, [])]
 
         for t in range(X.shape[0]):

@@ -37,10 +37,11 @@ class PhonemeDetector(nn.Module):
     def forward(self, wav_input_16khz, padding_mask=None, tutor=False):
         c = self.wav2vec.forward(wav_input_16khz, mask=False, features_only=True, padding_mask=padding_mask)
         #c['x'] = (N, L, C)
-        tutor_lengths = (1 - c['padding_mask'].long()).sum(-1)
+        if padding_mask is not None:
+            tutor_lengths = (1 - c['padding_mask'].long()).sum(-1)
 
         x = self.time_transform(c['x'].transpose(1,2))
-        x = F.gelu(self.batch_norm1(self.conv1(x)))
+        x = self.batch_norm1(F.relu(self.conv1(x)))
         x = x.transpose(1,2).transpose(0,1)
         x = F.log_softmax(self.fc(x), dim=-1).to(torch.float64)
 
@@ -74,7 +75,7 @@ class PhonemeDetector(nn.Module):
             return x
 
     def get_idx_in_sample(self, idx: int) -> int:
-        return PhonemeDetector.wav2vec_to_16khz * self.get_upscaled_length(idx)
+        return ((idx + self.kernel_size * self.upscale + 1 ) // self.upscale) * PhonemeDetector.wav2vec_to_16khz
 
     def get_sample_in_idx(self, sample_idx: int) -> int:
         return self.get_upscaled_length(sample_idx // PhonemeDetector.wav2vec_to_16khz)

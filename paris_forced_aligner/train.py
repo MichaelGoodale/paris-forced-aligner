@@ -98,8 +98,8 @@ def train(model: PhonemeDetector,
     unfrozen = False
     with open(f"{output_directory}/log.txt", 'w') as f:
         i = 0
-        gamma = 0.9
-        lambda_coefficient = 1.0
+        gamma = 0.0
+        lambda_coefficient = 0.0
         while i < n_steps:
             for input_wavs, wav_lengths, transcriptions, transcription_lengths in batched_audio_files(corpus, batch_size=batch_size):
                 gamma = 0.9999 * gamma 

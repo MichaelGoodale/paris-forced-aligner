@@ -28,7 +28,7 @@ def align():
     parser.add_argument("--transcripts", type=str)
     parser.add_argument("--output_files", type=str)
 
-    parser.add_argument("--youtube", type=str, nargs="*") 
+    parser.add_argument("--youtube", type=str, nargs="*")
     parser.add_argument("--youtube_lang", type=str, default='en')
     parser.add_argument("--youtube_output_dir", type=str, default='./youtube_audio')
 
@@ -42,7 +42,7 @@ def align():
 
     if not args.audio_file and not args.input_files and not args.youtube:
         parser.error("You must provide either --audio_file or --input_files or --youtube or any combination thereof.")
-model
+
     if args.audio_file and not args.transcription:
         parser.error("You must provide a transcription with --transcription for --audio_file")
 

@@ -40,7 +40,8 @@ class PronunciationDictionary:
 
     def add_words_from_utterance(self, utterance: Utterance):
         for word in utterance.words:
-            self.lexicon[word.label] = [p.label for p in word.phones]
+            if word.label not in self.lexicon:
+                self.lexicon[word.label] = [p.label for p in word.phones]
 
 
 class LibrispeechDictionary(PronunciationDictionary):

@@ -29,14 +29,13 @@ def evaluate():
 
     for audio_file, gold_utterance in BuckeyeCorpus(args.buckeye_dir, pronunciation_dictionary, return_gold_labels=True):
         aligned_utterance = forced_aligner.align_file(audio_file)
-        offset = gold_utterance.start
         for aligned_word, gold_word in zip(aligned_utterance.words, gold_utterance.words):
-            word_mean_start_difference = (abs(aligned_word.start + offset - gold_word.start)/16000 + n_word*word_mean_start_difference) / (n_word+1)
-            word_mean_end_difference = (abs(aligned_word.end + offset - gold_word.end)/16000 + n_word*word_mean_end_difference) / (n_word+1)
+            word_mean_start_difference = (abs(aligned_word.start - gold_word.start)/16000 + n_word*word_mean_start_difference) / (n_word+1)
+            word_mean_end_difference = (abs(aligned_word.end - gold_word.end)/16000 + n_word*word_mean_end_difference) / (n_word+1)
             n_word += 1
             for aligned_phone, gold_phone in zip(aligned_word.phones, gold_word.phones):
-                phone_mean_start_difference = (abs(aligned_phone.start + offset - gold_phone.start)/16000 + n_phone*phone_mean_start_difference) / (n_phone+1)
-                phone_mean_end_difference = (abs(aligned_phone.end + offset - gold_phone.end)/16000 + n_phone*phone_mean_end_difference) / (n_phone+1)
+                phone_mean_start_difference = (abs(aligned_phone.start - gold_phone.start)/16000 + n_phone*phone_mean_start_difference) / (n_phone+1)
+                phone_mean_end_difference = (abs(aligned_phone.end - gold_phone.end)/16000 + n_phone*phone_mean_end_difference) / (n_phone+1)
                 n_phone += 1
 
         print(f"Phone start {phone_mean_start_difference}, Phone end {phone_mean_end_difference}")
