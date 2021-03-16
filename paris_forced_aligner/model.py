@@ -41,7 +41,7 @@ class PhonemeDetector(nn.Module):
             tutor_lengths = (1 - c['padding_mask'].long()).sum(-1)
 
         x = self.time_transform(c['x'].transpose(1,2))
-        x = self.batch_norm1(F.relu(self.conv1(x)))
+        x = F.gelu(self.batch_norm1(self.conv1(x)))
         x = x.transpose(1,2).transpose(0,1)
         x = F.log_softmax(self.fc(x), dim=-1).to(torch.float64)
 
