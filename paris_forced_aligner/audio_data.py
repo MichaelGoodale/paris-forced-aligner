@@ -22,7 +22,7 @@ class PronunciationDictionary:
 
     def __init__(self):
         self.lexicon: Mapping[str, List[str]] = {}
-        self.phonemic_inventory: Set[str] = set([PronunciationDictionary.silence, PronunciationDictionary.OOV])
+        self.phonemic_inventory: Set[str] = set([PronunciationDictionary.silence])
         self.phone_to_phoneme: Mapping[str, str] = {}
         self.load_lexicon()
         self.phonemic_mapping: Mapping[str, int] = {phone: i+1 for i, phone in enumerate(sorted(self.phonemic_inventory))}
@@ -37,6 +37,9 @@ class PronunciationDictionary:
 
     def index_to_phone(self, idx: int) -> str:
         return self.index_mapping[idx]
+
+    def get_spelling(self, word: str) -> List[str]:
+        raise NotImplementedError("G2P models not yet available")
 
     def add_words_from_utterance(self, utterance: Utterance):
         for word in utterance.words:
@@ -130,7 +133,7 @@ class AudioFile:
                 if raise_on_oov:
                     raise OutOfVocabularyException(f"{word} is not present in the librispeech lexicon")
                 else:
-                    new_transcription.append(self.pronunciation_dictionary.OOV)
+                    new_transcription.append(self.pronunciation_dictionary.get_spelling(word))
             new_transcription.append(PronunciationDictionary.silence)
 
         new_transcription_tensor = torch.tensor([self.pronunciation_dictionary.phonemic_mapping[x] for x in new_transcription])

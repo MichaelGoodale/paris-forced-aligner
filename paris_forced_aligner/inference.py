@@ -6,7 +6,7 @@ from paris_forced_aligner.phonological import Utterance, Phone, Word, Silence
 
 class ForcedAligner:
 
-    def __init__(self, model: PhonemeDetector, n_beams: int = 250):
+    def __init__(self, model: PhonemeDetector, n_beams: int = 50):
         self.model = model
         self.BEAMS = n_beams
 

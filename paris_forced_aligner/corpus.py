@@ -116,7 +116,7 @@ class YoutubeCorpus(CorpusClass):
 
 
 class LibrispeechCorpus(CorpusClass):
-    def __init__(self, corpus_path: str, raise_on_oov: bool = False):
+    def __init__(self, corpus_path: str, raise_on_oov: bool = True):
         super().__init__(corpus_path, LibrispeechDictionary(), raise_on_oov, False)
 
     def extract_files(self, return_gold_labels):
@@ -131,7 +131,10 @@ class LibrispeechCorpus(CorpusClass):
                     for line in f:
                         filename, transcription = line.strip().split(' ', 1)
                         filename = os.path.join(d, f"{filename}.flac")
-                        yield AudioFile(filename, transcription, self.pronunciation_dictionary, raise_on_oov=self.raise_on_oov)
+                        try:
+                            yield AudioFile(filename, transcription, self.pronunciation_dictionary, raise_on_oov=self.raise_on_oov)
+                        except OutOfVocabularyException:
+                            continue
 
         if not found_files:
             raise IOError(f"{self.corpus_path} has no files!")
