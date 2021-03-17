@@ -29,50 +29,21 @@ class PhonemeDetector(nn.Module):
         self.kernel_size = kernel_size
         self.fc = nn.Linear(internal_vector_size, vocab_size)
 
-        self.fc_tutor = nn.Linear(768, vocab_size)
-
     def get_upscaled_length(self, length: int) -> int:
         return self.upscale*length - self.kernel_size*self.upscale + 1
 
-    def forward(self, wav_input_16khz, padding_mask=None, tutor=False):
+    def forward(self, wav_input_16khz, padding_mask=None):
         c = self.wav2vec.forward(wav_input_16khz, mask=False, features_only=True, padding_mask=padding_mask)
         #c['x'] = (N, L, C)
-        if padding_mask is not None:
-            tutor_lengths = (1 - c['padding_mask'].long()).sum(-1)
-
         x = self.time_transform(c['x'].transpose(1,2))
         x = F.gelu(self.batch_norm1(self.conv1(x)))
         x = x.transpose(1,2).transpose(0,1)
         x = F.log_softmax(self.fc(x), dim=-1).to(torch.float64)
 
-        if tutor:
-            tutor_x = c['x']
-            tutor_x = F.log_softmax(self.fc_tutor(tutor_x.transpose(0, 1)), dim=-1)
-            with torch.no_grad():
-                tutor_up = self.time_transform(tutor_x.transpose(0,1).transpose(1,2))
-
-                #FIND A FASTER WAY
-                tutor_y = torch.zeros(x.shape)
-                for i in range(x.shape[0]):
-                    tutor_y[i, :, :] = torch.mean(tutor_up[:, :, i:i+(self.upscale*self.kernel_size - 1)], dim=-1)
-                tutor_y = torch.argmax(tutor_y, dim=-1).transpose(0, 1)
-
         if padding_mask is not None:
-            x_lengths = self.get_upscaled_length(tutor_lengths)
-
-
-        if tutor:
-            if padding_mask is not None:
-                with torch.no_grad():
-                    for i in range(x.shape[1]):
-                        tutor_y[i, x_lengths[i]:] = -100
-                return x, tutor_x, tutor_y, x_lengths, tutor_lengths
-            return x, tutor_x, tutor_y
-
-        else:
-            if padding_mask is not None:
-                return x, x_lengths
-            return x
+            x_lengths = self.get_upscaled_length((1 - c['padding_mask'].long()).sum(-1))
+            return x, x_lengths
+        return x
 
     def get_idx_in_sample(self, idx: int) -> int:
         return ((idx + self.kernel_size * self.upscale + 1 ) // self.upscale) * PhonemeDetector.wav2vec_to_16khz

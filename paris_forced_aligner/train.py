@@ -8,13 +8,6 @@ import torch
 from torch.nn import CTCLoss, CrossEntropyLoss
 import torch.nn.functional as F
 
-def ctc_tutor(X, transcriptions, X_lengths, transcription_lengths, tutor_X, tutor_lengths, tutor_y):
-    tutor_loss = F.ctc_loss(tutor_X, transcriptions, tutor_lengths, transcription_lengths)
-    ctc_loss = F.ctc_loss(X, transcriptions, X_lengths, transcription_lengths)
-    cross_entropy = F.cross_entropy(X.transpose(0, 1).transpose(1,2), tutor_y)
-    return tutor_loss, ctc_loss, cross_entropy
-
-
 def prepare_audio_batch(batch):
     wav_lengths = torch.tensor([a.wav.shape[1] for a in batch])
     input_wavs = torch.ones((len(batch), wav_lengths.max()))
@@ -91,9 +84,6 @@ def train(model: PhonemeDetector,
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     losses = []
-    ctc_losses = []
-    cross_losses = []
-    tutor_losses = []
 
     unfrozen = False
     with open(f"{output_directory}/log.txt", 'w') as f:
@@ -102,13 +92,10 @@ def train(model: PhonemeDetector,
         lambda_coefficient = 0.0
         while i < n_steps:
             for input_wavs, wav_lengths, transcriptions, transcription_lengths in batched_audio_files(corpus, batch_size=batch_size):
-                gamma = 0.9999 * gamma 
-                lambda_coefficient = 0.9999 * lambda_coefficient 
                 input_wavs = input_wavs.to(device)
                 wav_lengths = wav_lengths.to(device)
 
-                X, tutor_X, tutor_y, X_lengths, tutor_lengths = model(input_wavs, padding_mask=wav_lengths, tutor=True)
-                tutor_y.to(device)
+                X, X_lengths = model(input_wavs, padding_mask=wav_lengths)
 
                 if corpus.return_gold_labels:
                     transcriptions_mat = -100*torch.ones((len(X_lengths), X_lengths.max()), dtype=torch.long)
@@ -127,25 +114,17 @@ def train(model: PhonemeDetector,
                 else:
                     transcriptions = transcriptions.to(device)
                     transcription_lengths = transcription_lengths.to(device)
-                    tutor_loss, ctc_loss, cross_entropy_loss = ctc_tutor(X, transcriptions, X_lengths, transcription_lengths, tutor_X, tutor_lengths, tutor_y)
+                    loss = ctc_loss_fn(X, transcriptions, X_lengths, transcription_lengths)
 
-                loss = gamma * tutor_loss + ((1-gamma) * ((1-lambda_coefficient) * ctc_loss + lambda_coefficient * cross_entropy_loss))
                 loss.backward()
                 losses.append(loss.item())
-                ctc_losses.append(ctc_loss.item())
-                tutor_losses.append(tutor_loss.item())
-                cross_losses.append(cross_entropy_loss.item())
-
 
                 if i % accumulate_steps == 0:
                     optimizer.step()
                     optimizer.zero_grad()
-                    print(f"Step {i}: gamma={gamma}, lambda={lambda_coefficient}, {sum(tutor_losses)/len(tutor_losses)}+{sum(ctc_losses)/len(ctc_losses)}+{sum(cross_losses)/len(cross_losses)} = {sum(losses)/len(losses)}")
+                    print(f"Step {i}: {sum(losses)/len(losses)}")
                     f.write(f'{i} {sum(losses)/len(losses)}\n')
                     losses = []
-                    tutor_losses = []
-                    ctc_losses = []
-                    cross_losses = []
 
                 if not unfrozen and i >= unfreeze_after:
                     model.unfreeze_wav2vec()
