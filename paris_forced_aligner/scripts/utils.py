@@ -19,9 +19,9 @@ def add_model_args(parser: argparse.ArgumentParser):
     parser.add_argument('--download-wav2vec', action='store_true')
     parser.add_argument('--wav2vec_model_path', type=str)
     parser.add_argument('--checkpoint', type=str)
-    parser.add_argument('--upscale', type=int, default=2)
-    parser.add_argument('--kernel_size', type=int, default=4)
-    parser.add_argument('--internal_vector_dim', type=int, default=128)
+    parser.add_argument('--upscale', type=int, default=5)
+    parser.add_argument('--kernel_size', type=int, default=2)
+    parser.add_argument('--internal_vector_dim', type=int, default=256)
 
 def add_dictionary_args(parser: argparse.ArgumentParser):
     parser.add_argument("--dictionary", default='librispeech', choices=['librispeech', 'librispeech_unstressed', 'tsv'])

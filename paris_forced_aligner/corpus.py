@@ -1,10 +1,12 @@
 import io
 import os
+import re
 import tarfile
 from zipfile import ZipFile
 import random
 from typing import List, Optional
 from functools import partial 
+from itertools import chain
 
 from torch.multiprocessing import Pool, cpu_count
 import buckeye
@@ -139,8 +141,105 @@ class LibrispeechCorpus(CorpusClass):
         if not found_files:
             raise IOError(f"{self.corpus_path} has no files!")
 
+class TimitCorpus(CorpusClass):
+    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False, split: str = "train", stress_labeled: bool = False):
+        super().__init__(corpus_path, pronunciation_dictionary, True, return_gold_labels)
+        if split not in ["train", "test", "both"]:
+            raise NotImplementedError("TIMIT has only a test and train split, please set `split` in ['train', 'test', 'both']")
+        self.split = split
+        self.stress_labeled = stress_labeled
+
+    def get_utterance(self, phn_f, word_f):
+        word_timing = []
+        with open(word_f) as f:
+            for line in f:
+                start, end, label = line.strip().split()
+                start = int(start)
+                end = int(end)
+                word_timing.append((label.upper(), start, end))
+
+        with open(phn_f) as f:
+            data = []
+            word = []
+            for line in f:
+                start, end, label = line.strip().split()
+                start = int(start)
+                end = int(end)
+                print(self.pronunciation_dictionary.phonemic_inventory)
+                if label in ["pau", "epi", "h#"]:
+                    data.append(Silence(start, end))
+                else:
+                    if not self.stress_labeled:
+                        label = re.sub(r'[0-9]+', '', label)
+
+                    if label.endswith('cl'):
+                        label = label[0]
+                    elif label == "hv":
+                        label = "HH"
+                    elif label == "ax-h":
+                        label = "AX"
+                    elif label == "axr":
+                        label = "R"
+                    elif label == "ix":
+                        label = "IH"
+                    elif label == "ux":
+                        label = "UW"
+                    elif label == "el":
+                        label = "L"
+                    if label == "nx":
+                        label = "N"
+                    elif label == "dx":
+                        try:
+                            spelling = self.pronunciation_dictionary.lexicon[word_timing[0][0]]
+                            for x in spelling:
+                                if x in ["T", "D"]:
+                                    label = x
+                                    break #Mediocre way of checking but should work ok
+                        except KeyError:
+                            continue 
+                        if label not in ["T", "D"]:
+                            label = "T"
+                    elif label == "q":
+                        label = "T" 
+                    elif label == "eng":
+                        label = "NG"
+                    label = label.upper()
+
+                    if len(word) > 1 and word[-1].label == label:
+                        word[-1].end = end
+                    else:
+                        word.append(Phone(label, start, end))
+
+                    if end >= word_timing[0][2]:
+                        data.append(Word(word, word_timing[0][0]))
+                        word_timing = word_timing[1:]
+                        word = []
+        return Utterance(data)
+
+    def extract_files(self, return_gold_labels):
+        corpus_paths = [os.path.join(self.corpus_path, x) for x in ["train", "test"]]
+        if self.split == "train":
+            corpus_paths = [corpus_paths[0]]
+        elif self.split == 'test':
+            corpus_paths = [corpus_paths[1]]
+
+        for (d, s_d, files) in chain(*[os.walk(x) for x in corpus_paths]):
+            for f in filter(lambda x: x.endswith('.wav'), files):
+                wav_f = os.path.join(d, f)
+                phn_f = wav_f.replace('.wav', '.phn')
+                word_f = wav_f.replace('.wav', '.wrd')
+                utterance = self.get_utterance(phn_f, word_f)
+                self.pronunciation_dictionary.add_words_from_utterance(utterance)
+                audio = AudioFile(wav_f, utterance.transcription, self.pronunciation_dictionary, raise_on_oov=self.raise_on_oov)
+
+                if return_gold_labels:
+                    yield audio, utterance
+                else:
+                    yield audio
+
+
 class BuckeyeCorpus(CorpusClass):
-    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False, split_time: int = 10):
+    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False):
         super().__init__(corpus_path, pronunciation_dictionary, True, return_gold_labels)
 
     def _extract_from_zip(self, zip_dir, track_name, speaker_name):
@@ -153,55 +252,35 @@ class BuckeyeCorpus(CorpusClass):
 
     def convert_to_arpabet(word, word_buckeye, sr=16000):
         '''Handles converting from seconds to frames and also handles any phoneme differences'''
-        if isinstance(word, Silence):
-            word = Silence(int(word.start * sr), int(word.end *sr))
-        else:
-            word.label = word.label.strip().replace('-', 'X').replace(' ', 'X').upper() 
-            for i, phone in enumerate(word.phones):
-                phone.start = int(phone.start * sr)
-                phone.end = int(phone.end * sr)
-                if phone.label is not None:
-                    phone.label = phone.label.upper()
-                    if phone.label == "NX":
-                        phone.label = "N"
-                    elif phone.label == "DX":
-                        if i < len(word_buckeye.phonemic):
-                            phone.label = word_buckeye.phonemic[i].upper()
-                        if phone.label != 'T' or phone.label != 'D':
-                            phone.label = 'T' #Good enough!
-                    elif phone.label == "EN":
-                        phone.label = "N"
-                    elif phone.label == "EM":
-                        phone.label = "M"
-                    elif phone.label == "EL":
-                        phone.label = "L"
-                    elif phone.label == "TQ": #Hope these aren't epenthetic
-                        phone.label = "T"
-                    elif len(phone.label) == 3 and phone.label.endswith("N"):
-                        phone.label = phone.label[:2] #No nasal phone >:(
-                    elif len(phone.label) >= 3:
-                        phone.label = PronunciationDictionary.silence
-                else:
-                    phone.label = PronunciationDictionary.silence
-        return word
+        word.label = word.label.strip().replace('-', 'X').replace(' ', 'X').upper() 
+        for i, phone in enumerate(word.phones):
+            phone.start = int(phone.start * sr)
+            phone.end = int(phone.end * sr)
 
-    def merge_silences(words):
-        last = None
-        new_words = []
-        for word in words:
-            if isinstance(word, Silence):
-                if last is not None:
-                    last.end = word.end
-                else:
-                    last = word
+            if phone.label is not None:
+                phone.label = phone.label.upper()
+                if phone.label == "NX":
+                    phone.label = "N"
+                elif phone.label == "DX":
+                    if word_buckeye.phonemic is not None and i < len(word_buckeye.phonemic):
+                        phone.label = word_buckeye.phonemic[i].upper()
+                    if phone.label != 'T' or phone.label != 'D':
+                        phone.label = 'T' #Good enough!
+                elif phone.label == "EN":
+                    phone.label = "N"
+                elif phone.label == "EM":
+                    phone.label = "M"
+                elif phone.label == "EL":
+                    phone.label = "L"
+                elif phone.label == "TQ": #Hope these aren't epenthetic
+                    phone.label = "T"
+                elif len(phone.label) == 3 and phone.label.endswith("N"):
+                    phone.label = phone.label[:2] #No nasal phone >:(
+                elif len(phone.label) >= 3:
+                    phone.label = PronunciationDictionary.silence
             else:
-                if last is not None:
-                    new_words.append(last)
-                    last = None
-                new_words.append(word)
-        if last is not None:
-            new_words.append(last)
-        return new_words
+                phone.label = PronunciationDictionary.silence
+        return word
 
     def extract_files(self, return_gold_labels):
         for d, s_d, files in os.walk(self.corpus_path):
@@ -210,22 +289,26 @@ class BuckeyeCorpus(CorpusClass):
             for f in speaker_files:
                 zip_path = os.path.join(d, f)
                 speaker = buckeye.Speaker.from_zip(zip_path)
+
                 with ZipFile(zip_path) as zip_dir:
                     for track in speaker:
-                        start = 0.0
                         paris_words = []
                         wav, sr = self._extract_from_zip(zip_dir, track.name, speaker.name)
 
                         for word in track.words:
                             if isinstance(word, buckeye.containers.Pause):
-                                paris_word = Silence(word.beg, word.end)
+                                if len(paris_words) > 1 and isinstance(paris_words[-1], Silence):
+                                    paris_words[-1].end = int(word.end * 16000)
+                                else:
+                                    paris_words.append(Silence(int(word.beg * 16000), int(word.end * 16000)))
                             else:
                                 paris_word = Word([Phone(p.seg, p.beg, p.end) for p in word.phones], word.orthography)
                                 #TODO: Add dynamic dictionary words w/ correct pronunciation (maybe)
-                            paris_words.append(BuckeyeCorpus.convert_to_arpabet(paris_word, word))
+                                paris_words.append(BuckeyeCorpus.convert_to_arpabet(paris_word, word))
 
-                            if word.beg - start > 10.0 and isinstance(word, buckeye.containers.Pause):
-                                utterance = Utterance(BuckeyeCorpus.merge_silences(paris_words))
+                            if len(paris_words) > 2 and isinstance(paris_words[-1], Silence) and paris_words[-1].duration > int(0.150*16000):
+                                utterance = Utterance(paris_words[:-1])
+
                                 if utterance.words != []:
                                     self.pronunciation_dictionary.add_words_from_utterance(utterance)
                                     audio = AudioFile(track.name, utterance.transcription, self.pronunciation_dictionary, wavobj=(wav[:, utterance.start:utterance.end], 16000), raise_on_oov=self.raise_on_oov)
@@ -238,5 +321,4 @@ class BuckeyeCorpus(CorpusClass):
                                     else:
                                         yield audio
                                 paris_words = []
-                                start = utterance.end + utt_start
 

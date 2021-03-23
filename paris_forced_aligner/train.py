@@ -34,8 +34,6 @@ def batched_audio_files(corpus, batch_size=1, device='cpu', memory_max_length=26
                 yield input_wavs, padding_mask, utt_batch, None
                 utt_batch = []
                 batch = []
-
-
     else:
         for audio_file in corpus:
             if audio_file.wav.shape[1] < memory_max_length:

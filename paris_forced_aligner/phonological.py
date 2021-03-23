@@ -10,6 +10,10 @@ class Phone:
     start: int
     end: int
 
+    @property
+    def duration(self):
+        return self.end - self.start
+
 @dataclass
 class Word:
     phones: List[Phone]
@@ -23,11 +27,19 @@ class Word:
     def end(self):
         return self.phones[-1].end
 
+    @property
+    def duration(self):
+        return self.end - self.start
+
 @dataclass
 class Silence:
     start: int
     end: int
     label: str = "<SIL>"
+
+    @property
+    def duration(self):
+        return self.end - self.start
 
 
 @dataclass
@@ -59,6 +71,10 @@ class Utterance:
     @property
     def transcription(self):
         return " ".join(w.label for w in self.words)
+
+    @property
+    def duration(self):
+        return self.end - self.start
 
     def offset(self, offset):
         for unit in self.base_units:
