@@ -24,14 +24,14 @@ def add_model_args(parser: argparse.ArgumentParser):
     parser.add_argument('--internal_vector_dim', type=int, default=128)
 
 def add_dictionary_args(parser: argparse.ArgumentParser):
-    parser.add_argument("--dictionary", default='librispeech', choices=['librispeech', 'librispeech_stressed', 'tsv'])
+    parser.add_argument("--dictionary", default='librispeech', choices=['librispeech', 'librispeech_unstressed', 'tsv'])
     parser.add_argument("--dictionary_path", type=str)
 
 def process_dictionary_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> Tuple[PronunciationDictionary, int]:
     if args.dictionary == "librispeech":
         dictionary = LibrispeechDictionary()
-    elif args.dictionary == "librispeech_stressed":
-        dictionary = LibrispeechDictionary(remove_stress=False)
+    elif args.dictionary == "librispeech_unstressed":
+        dictionary = LibrispeechDictionary(remove_stress=True)
     elif args.dictionary == "tsv":
         if not args.dictionary_path:
             parser.error("Please supply --dictionary_path when using TSV dictionaries")

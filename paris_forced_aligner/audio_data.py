@@ -49,7 +49,7 @@ class PronunciationDictionary:
 
 class LibrispeechDictionary(PronunciationDictionary):
 
-    def __init__(self, remove_stress=True):
+    def __init__(self, remove_stress=False):
         self.remove_stress = remove_stress
         super().__init__()
 
@@ -64,7 +64,8 @@ class LibrispeechDictionary(PronunciationDictionary):
             for line in f:
                 word, pronunciation = re.split(r'\s+', line.strip(), maxsplit=1)
                 if self.remove_stress:
-                    pronunciation = re.sub(r'[0-9]+', '', pronunciation)
+                    pronunciation = re.sub(r'[1-9]+', '', pronunciation)
+                    pronunciation = re.sub(r' \w+0', ' AX', pronunciation)
 
                 self.lexicon[word] = pronunciation.split(' ')
                 for phone in self.lexicon[word]:
