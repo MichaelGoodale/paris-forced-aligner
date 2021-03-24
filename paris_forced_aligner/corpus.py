@@ -216,7 +216,6 @@ class TIMITCorpus(CorpusClass):
                     utterance = self.get_utterance(phn_f, word_f)
                     for base in utterance.base_units:
                         if base.label not in self.pronunciation_dictionary.phonemic_inventory:
-                            skipped += 1
                             raise OutOfVocabularyException()
                     audio = AudioFile(wav_f, utterance.transcription, self.pronunciation_dictionary, raise_on_oov=self.raise_on_oov)
                 except OutOfVocabularyException:
@@ -225,12 +224,12 @@ class TIMITCorpus(CorpusClass):
                 if return_gold_labels:
                     yield audio, utterance
                 else:
-                    ret += 1
                     yield audio
 
 class BuckeyeCorpus(CorpusClass):
-    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False):
+    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False, relabel: bool = False):
         super().__init__(corpus_path, pronunciation_dictionary, True, return_gold_labels)
+        self.relabel = relabel
 
     def _extract_from_zip(self, zip_dir, track_name, speaker_name):
         with ZipFile(zip_dir.open(f"{speaker_name}/{track_name}.zip")) as sound_dir:
@@ -249,25 +248,6 @@ class BuckeyeCorpus(CorpusClass):
 
             if phone.label is not None:
                 phone.label = phone.label.upper()
-                if phone.label == "NX":
-                    phone.label = "N"
-                elif phone.label == "DX":
-                    if word_buckeye.phonemic is not None and i < len(word_buckeye.phonemic):
-                        phone.label = word_buckeye.phonemic[i].upper()
-                    if phone.label != 'T' or phone.label != 'D':
-                        phone.label = 'T' #Good enough!
-                elif phone.label == "EN":
-                    phone.label = "N"
-                elif phone.label == "EM":
-                    phone.label = "M"
-                elif phone.label == "EL":
-                    phone.label = "L"
-                elif phone.label == "TQ": #Hope these aren't epenthetic
-                    phone.label = "T"
-                elif len(phone.label) == 3 and phone.label.endswith("N"):
-                    phone.label = phone.label[:2] #No nasal phone >:(
-                elif len(phone.label) >= 3:
-                    phone.label = PronunciationDictionary.silence
             else:
                 phone.label = PronunciationDictionary.silence
         return word
@@ -294,21 +274,32 @@ class BuckeyeCorpus(CorpusClass):
                             else:
                                 paris_word = Word([Phone(p.seg, p.beg, p.end) for p in word.phones], word.orthography)
                                 #TODO: Add dynamic dictionary words w/ correct pronunciation (maybe)
-                                paris_words.append(BuckeyeCorpus.convert_to_arpabet(paris_word, word))
+                                if word.phones != []:
+                                    paris_words.append(BuckeyeCorpus.convert_to_arpabet(paris_word, word))
 
-                            if len(paris_words) > 2 and isinstance(paris_words[-1], Silence) and paris_words[-1].duration > int(0.150*16000):
+                            if len(paris_words) >= 2 and isinstance(paris_words[-1], Silence) and paris_words[-1].duration > int(0.150*16000):
                                 utterance = Utterance(paris_words[:-1])
 
                                 if utterance.words != []:
-                                    self.pronunciation_dictionary.add_words_from_utterance(utterance)
-                                    audio = AudioFile(track.name, utterance.transcription, self.pronunciation_dictionary, wavobj=(wav[:, utterance.start:utterance.end], 16000), raise_on_oov=self.raise_on_oov)
+                                    try:
+                                        audio = AudioFile(track.name, utterance.transcription, self.pronunciation_dictionary, wavobj=(wav[:, utterance.start:utterance.end], 16000), raise_on_oov=self.raise_on_oov)
+                                    except OutOfVocabularyException:
+                                        continue 
                                     if return_gold_labels:
                                         utt_start = utterance.start 
                                         for base in utterance.base_units:
                                             base.start -= utt_start
                                             base.end -= utt_start
+                                        if self.relabel:
+                                            for word in utterance.words:
+                                                lexical_word = self.pronunciation_dictionary.lexicon[word.label]
+                                                for p, lexical_phone in zip(word.phones, lexical_phone):
+                                                    p.label = lexical_phone
+                                            for base in utterance.base_units:
+                                                if base.label not in self.pronunciation_dictionary.phonemic_inventory:
+                                                    print("skip")
+                                                    continue
                                         yield audio, utterance
                                     else:
                                         yield audio
                                 paris_words = []
-
