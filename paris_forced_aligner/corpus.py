@@ -141,7 +141,7 @@ class LibrispeechCorpus(CorpusClass):
         if not found_files:
             raise IOError(f"{self.corpus_path} has no files!")
 
-class TimitCorpus(CorpusClass):
+class TIMITCorpus(CorpusClass):
     def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False, split: str = "train", stress_labeled: bool = False):
         super().__init__(corpus_path, pronunciation_dictionary, True, return_gold_labels)
         if split not in ["train", "test", "both"]:
@@ -165,7 +165,6 @@ class TimitCorpus(CorpusClass):
                 start, end, label = line.strip().split()
                 start = int(start)
                 end = int(end)
-                print(self.pronunciation_dictionary.phonemic_inventory)
                 if label in ["pau", "epi", "h#"]:
                     data.append(Silence(start, end))
                 else:
@@ -174,46 +173,29 @@ class TimitCorpus(CorpusClass):
 
                     if label.endswith('cl'):
                         label = label[0]
-                    elif label == "hv":
-                        label = "HH"
-                    elif label == "ax-h":
-                        label = "AX"
-                    elif label == "axr":
-                        label = "R"
-                    elif label == "ix":
-                        label = "IH"
-                    elif label == "ux":
-                        label = "UW"
-                    elif label == "el":
-                        label = "L"
-                    if label == "nx":
-                        label = "N"
-                    elif label == "dx":
-                        try:
-                            spelling = self.pronunciation_dictionary.lexicon[word_timing[0][0]]
-                            for x in spelling:
-                                if x in ["T", "D"]:
-                                    label = x
-                                    break #Mediocre way of checking but should work ok
-                        except KeyError:
-                            continue 
-                        if label not in ["T", "D"]:
-                            label = "T"
-                    elif label == "q":
-                        label = "T" 
-                    elif label == "eng":
-                        label = "NG"
+
                     label = label.upper()
 
-                    if len(word) > 1 and word[-1].label == label:
+                    if len(word_timing) >= 1 and end > word_timing[0][2]:
+                        word = Word(word, word_timing[0][0])
+                        try:
+                            lexical_phones = self.pronunciation_dictionary.lexicon[word.label]
+                        except KeyError:
+                            raise OutOfVocabularyException()
+                        if len(word.phones) > len(lexical_phones):
+                            if word.phones[0].label == "Q":
+                                word.phones[1].start = word.phones[0].start
+                                word.phones = word.phones[1:]
+                        for word_phone, lex_phone in zip(word.phones, lexical_phones):
+                            word_phone.label = lex_phone
+                        data.append(word)
+                        word_timing = word_timing[1:]
+                        word = []
+
+                    if len(word) >= 1 and word[-1].label == label and label in ["B", "P", "D", "T", "G", "K"]:
                         word[-1].end = end
                     else:
                         word.append(Phone(label, start, end))
-
-                    if end >= word_timing[0][2]:
-                        data.append(Word(word, word_timing[0][0]))
-                        word_timing = word_timing[1:]
-                        word = []
         return Utterance(data)
 
     def extract_files(self, return_gold_labels):
@@ -223,20 +205,28 @@ class TimitCorpus(CorpusClass):
         elif self.split == 'test':
             corpus_paths = [corpus_paths[1]]
 
+        ret = 0
+        skipped = 0
         for (d, s_d, files) in chain(*[os.walk(x) for x in corpus_paths]):
             for f in filter(lambda x: x.endswith('.wav'), files):
                 wav_f = os.path.join(d, f)
                 phn_f = wav_f.replace('.wav', '.phn')
                 word_f = wav_f.replace('.wav', '.wrd')
-                utterance = self.get_utterance(phn_f, word_f)
-                self.pronunciation_dictionary.add_words_from_utterance(utterance)
-                audio = AudioFile(wav_f, utterance.transcription, self.pronunciation_dictionary, raise_on_oov=self.raise_on_oov)
+                try:
+                    utterance = self.get_utterance(phn_f, word_f)
+                    for base in utterance.base_units:
+                        if base.label not in self.pronunciation_dictionary.phonemic_inventory:
+                            skipped += 1
+                            raise OutOfVocabularyException()
+                    audio = AudioFile(wav_f, utterance.transcription, self.pronunciation_dictionary, raise_on_oov=self.raise_on_oov)
+                except OutOfVocabularyException:
+                    continue 
 
                 if return_gold_labels:
                     yield audio, utterance
                 else:
+                    ret += 1
                     yield audio
-
 
 class BuckeyeCorpus(CorpusClass):
     def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False):
@@ -297,7 +287,7 @@ class BuckeyeCorpus(CorpusClass):
 
                         for word in track.words:
                             if isinstance(word, buckeye.containers.Pause):
-                                if len(paris_words) > 1 and isinstance(paris_words[-1], Silence):
+                                if len(paris_words) >= 1 and isinstance(paris_words[-1], Silence):
                                     paris_words[-1].end = int(word.end * 16000)
                                 else:
                                     paris_words.append(Silence(int(word.beg * 16000), int(word.end * 16000)))

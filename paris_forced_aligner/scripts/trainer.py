@@ -5,7 +5,7 @@ import torch
 from paris_forced_aligner.utils import download_data_file, data_directory
 from paris_forced_aligner.scripts.utils import process_model_args, add_model_args, add_dictionary_args, process_dictionary_args
 from paris_forced_aligner.train import train
-from paris_forced_aligner.corpus import LibrispeechCorpus, YoutubeCorpus, BuckeyeCorpus
+from paris_forced_aligner.corpus import LibrispeechCorpus, YoutubeCorpus, BuckeyeCorpus, TIMITCorpus
 from paris_forced_aligner.model import PhonemeDetector
 
 def train_model():
@@ -14,7 +14,7 @@ def train_model():
     add_dictionary_args(parser)
     parser.add_argument("--output_dir", default="models")
     parser.add_argument("--corpus_path", type=str, required=True)
-    parser.add_argument("--corpus_type", default="librispeech", choices=['librispeech', 'youtube', 'buckeye'])
+    parser.add_argument("--corpus_type", default="librispeech", choices=['librispeech', 'youtube', 'buckeye', 'timit'])
     parser.add_argument("--gpu", action='store_true')
 
     parser.add_argument("--learning_rate", type=float, default=3e-5)
@@ -36,6 +36,8 @@ def train_model():
         corpus = YoutubeCorpus(args.corpus_path, pronunciation_dictionary)
     elif args.corpus_type == 'buckeye':
         corpus = BuckeyeCorpus(args.corpus_path, pronunciation_dictionary, return_gold_labels=True)
+    elif args.corpus_type == 'timit':
+        corpus = TIMITCorpus(args.corpus_path, pronunciation_dictionary, return_gold_labels=True)
 
     if args.gpu:
         device = 'cuda:0'

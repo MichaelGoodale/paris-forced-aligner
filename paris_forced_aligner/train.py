@@ -102,8 +102,8 @@ def train(model: PhonemeDetector,
                     for j, utterance in enumerate(transcriptions):
                         for phone in utterance.base_units:
                             phone_idx = corpus.pronunciation_dictionary.phonemic_mapping[phone.label]
-                            start = model.get_sample_in_idx(phone.start - utterance.start)
-                            end = model.get_sample_in_idx(phone.end - utterance.start)
+                            start = model.get_sample_in_idx(phone.start)
+                            end = model.get_sample_in_idx(phone.end)
                             transcriptions_mat[j, start:end] = phone_idx
 
                     transcriptions_mat = transcriptions_mat.to(device)
