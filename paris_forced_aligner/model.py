@@ -13,7 +13,7 @@ def load_wav2vec_model(filepath):
 class PhonemeDetector(nn.Module):
     wav2vec_to_16khz = 320
 
-    def __init__(self, filepath, vocab_size, upscale=2, internal_vector_size=256, kernel_size=4):
+    def __init__(self, filepath, vocab_size, upscale=2, internal_vector_size=256, kernel_size=2):
         super().__init__()
         self.filepath = filepath
         self.vocab_size = vocab_size
@@ -23,7 +23,7 @@ class PhonemeDetector(nn.Module):
 
         #Kernel_size * 25 ms = receptive field of conv
         self.conv1 = nn.Conv1d(768, internal_vector_size, kernel_size*upscale)
-        self.batch_norm1 = nn.BatchNorm1d(internal_vector_size)
+        self.batch_norm1 = nn.GroupNorm(internal_vector_size, internal_vector_size)
 
         self.upscale = upscale 
         self.kernel_size = kernel_size

@@ -88,7 +88,7 @@ def train(model: PhonemeDetector,
         i = 0
         gamma = 0.0
         lambda_coefficient = 0.0
-        while i < n_steps:
+        while i * accumulate_steps < n_steps:
             for input_wavs, wav_lengths, transcriptions, transcription_lengths in batched_audio_files(corpus, batch_size=batch_size):
                 input_wavs = input_wavs.to(device)
                 wav_lengths = wav_lengths.to(device)
@@ -108,28 +108,28 @@ def train(model: PhonemeDetector,
 
                     transcriptions_mat = transcriptions_mat.to(device)
                     X = X.transpose(0, 1).transpose(1, 2)
-                    loss = cross_entropy(X, transcriptions_mat)
+                    loss = cross_entropy(X, transcriptions_mat) / accumulate_steps
                 else:
                     transcriptions = transcriptions.to(device)
                     transcription_lengths = transcription_lengths.to(device)
-                    loss = ctc_loss_fn(X, transcriptions, X_lengths, transcription_lengths)
+                    loss = ctc_loss_fn(X, transcriptions, X_lengths, transcription_lengths) / accumulate_steps
 
                 loss.backward()
                 losses.append(loss.item())
 
-                if i % accumulate_steps == 0:
+                if i % accumulate_steps == 0 and i != 0:
                     optimizer.step()
                     optimizer.zero_grad()
-                    print(f"Step {i}: {sum(losses)/len(losses)}")
-                    f.write(f'{i} {sum(losses)/len(losses)}\n')
+                    print(f"Step {i}: {sum(losses)")
+                    f.write(f'{i} {sum(losses)\n')
                     losses = []
 
-                if not unfrozen and i >= unfreeze_after:
+                if not unfrozen and (accumulate_steps*i) >= unfreeze_after:
                     model.unfreeze_wav2vec()
                     model.freeze_encoder()
                     unfrozen = True
 
-                if i > 0 and i % output_model_every == 0:
+                if i > 0 and (accumulate_steps*i) % output_model_every == 0:
                     torch.save(model.state_dict(), f"{output_directory}/{i}_model.pt")
 
                 i += 1
