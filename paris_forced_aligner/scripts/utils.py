@@ -19,8 +19,6 @@ def add_model_args(parser: argparse.ArgumentParser):
     parser.add_argument('--download-wav2vec', action='store_true')
     parser.add_argument('--wav2vec_model_path', type=str)
     parser.add_argument('--checkpoint', type=str)
-    parser.add_argument('--upscale', type=int, default=5)
-    parser.add_argument('--kernel_size', type=int, default=2)
     parser.add_argument('--internal_vector_dim', type=int, default=256)
 
 def add_dictionary_args(parser: argparse.ArgumentParser):
@@ -35,7 +33,7 @@ def process_dictionary_args(parser: argparse.ArgumentParser, args: argparse.Name
     elif args.dictionary == "tsv":
         if not args.dictionary_path:
             parser.error("Please supply --dictionary_path when using TSV dictionaries")
-        dictionary = TSVDictionary()
+        dictionary = TSVDictionary(args.dictionary_path)
     return dictionary, dictionary.vocab_size()
 
 def process_model_args(parser: argparse.ArgumentParser, args: argparse.Namespace, vocab_size: int) -> str:
@@ -57,10 +55,8 @@ def process_model_args(parser: argparse.ArgumentParser, args: argparse.Namespace
     else:
         parser.error("You must pass either a wav2vec_model or wav2vec_model_path")
 
-    model = PhonemeDetector(wav2vec_model_path, vocab_size, args.upscale, args.internal_vector_dim, args.kernel_size)
+    model = PhonemeDetector(wav2vec_model_path, vocab_size, args.internal_vector_dim)
     if args.checkpoint:
         model.load_state_dict(torch.load(args.checkpoint, map_location=torch.device('cpu')))
         model.eval()
-    else:
-        model.init_weights()
     return model

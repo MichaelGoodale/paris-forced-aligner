@@ -34,7 +34,7 @@ class CorpusClass():
 class YoutubeCorpus(CorpusClass):
 
     def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, language: str = 'en', audio_directory: Optional[str] = None, save_wavs: bool = False):
-        super().__init__(corpus_path, pronunciation_dictionary, True, False)
+        super().__init__(corpus_path, pronunciation_dictionary)
         self.youtube_files = []
         self.save_wavs = save_wavs
 
@@ -122,7 +122,7 @@ class YoutubeCorpus(CorpusClass):
 
 class LibrispeechCorpus(CorpusClass):
     def __init__(self, corpus_path: str):
-        super().__init__(corpus_path, LibrispeechDictionary(), False)
+        super().__init__(corpus_path, LibrispeechDictionary())
 
     def extract_files(self, return_gold_labels):
         if return_gold_labels:
@@ -145,12 +145,12 @@ class LibrispeechCorpus(CorpusClass):
             raise IOError(f"{self.corpus_path} has no files!")
 
 class TIMITCorpus(CorpusClass):
-    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False, split: str = "train", stress_labeled: bool = False):
-        super().__init__(corpus_path, pronunciation_dictionary, True, return_gold_labels)
+    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False, split: str = "train", untranscribed_audio=True):
+        super().__init__(corpus_path, pronunciation_dictionary, return_gold_labels)
         if split not in ["train", "test", "both"]:
             raise NotImplementedError("TIMIT has only a test and train split, please set `split` in ['train', 'test', 'both']")
         self.split = split
-        self.stress_labeled = stress_labeled
+        self.untranscribed_audio = untranscribed_audio
 
     def get_utterance(self, phn_f, word_f):
         word_timing = []
@@ -171,9 +171,6 @@ class TIMITCorpus(CorpusClass):
                 if label in ["pau", "epi", "h#"]:
                     data.append(Silence(start, end))
                 else:
-                    if not self.stress_labeled:
-                        label = re.sub(r'[0-9]+', '', label)
-
                     if label.endswith('cl'):
                         label = label[0]
 
@@ -181,16 +178,6 @@ class TIMITCorpus(CorpusClass):
 
                     if len(word_timing) >= 1 and end > word_timing[0][2]:
                         word = Word(word, word_timing[0][0])
-                        try:
-                            lexical_phones = self.pronunciation_dictionary.lexicon[word.label]
-                        except KeyError:
-                            raise OutOfVocabularyException()
-                        if len(word.phones) > len(lexical_phones):
-                            if word.phones[0].label == "Q":
-                                word.phones[1].start = word.phones[0].start
-                                word.phones = word.phones[1:]
-                        for word_phone, lex_phone in zip(word.phones, lexical_phones):
-                            word_phone.label = lex_phone
                         data.append(word)
                         word_timing = word_timing[1:]
                         word = []
@@ -199,6 +186,7 @@ class TIMITCorpus(CorpusClass):
                         word[-1].end = end
                     else:
                         word.append(Phone(label, start, end))
+
         return Utterance(data)
 
     def extract_files(self, return_gold_labels):
@@ -208,21 +196,19 @@ class TIMITCorpus(CorpusClass):
         elif self.split == 'test':
             corpus_paths = [corpus_paths[1]]
 
-        ret = 0
-        skipped = 0
         for (d, s_d, files) in chain(*[os.walk(x) for x in corpus_paths]):
             for f in filter(lambda x: x.endswith('.wav'), files):
                 wav_f = os.path.join(d, f)
                 phn_f = wav_f.replace('.wav', '.phn')
                 word_f = wav_f.replace('.wav', '.wrd')
-                try:
-                    utterance = self.get_utterance(phn_f, word_f)
-                    for base in utterance.base_units:
-                        if base.label not in self.pronunciation_dictionary.phonemic_inventory:
-                            raise OutOfVocabularyException()
-                    audio = AudioFile(wav_f, utterance.transcription, self.pronunciation_dictionary)
-                except OutOfVocabularyException:
-                    continue 
+
+                utterance = self.get_utterance(phn_f, word_f)
+                if self.untranscribed_audio:
+                    transcription = ""
+                else:
+                    transcription = utterance.transcription
+
+                audio = AudioFile(wav_f, transcription, self.pronunciation_dictionary)
 
                 if return_gold_labels:
                     yield audio, utterance
@@ -231,7 +217,7 @@ class TIMITCorpus(CorpusClass):
 
 class BuckeyeCorpus(CorpusClass):
     def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False, relabel: bool = False):
-        super().__init__(corpus_path, pronunciation_dictionary, True, return_gold_labels)
+        super().__init__(corpus_path, pronunciation_dictionary, return_gold_labels)
         self.relabel = relabel
 
     def _extract_from_zip(self, zip_dir, track_name, speaker_name):
@@ -288,11 +274,13 @@ class BuckeyeCorpus(CorpusClass):
                                         audio = AudioFile(track.name, utterance.transcription, self.pronunciation_dictionary, wavobj=(wav[:, utterance.start:utterance.end], 16000))
                                     except OutOfVocabularyException:
                                         continue 
+
                                     if return_gold_labels:
                                         utt_start = utterance.start 
                                         for base in utterance.base_units:
                                             base.start -= utt_start
                                             base.end -= utt_start
+
                                         if self.relabel:
                                             for word in utterance.words:
                                                 lexical_word = self.pronunciation_dictionary.lexicon[word.label]
@@ -302,6 +290,7 @@ class BuckeyeCorpus(CorpusClass):
                                                 if base.label not in self.pronunciation_dictionary.phonemic_inventory:
                                                     print("skip")
                                                     continue
+
                                         yield audio, utterance
                                     else:
                                         yield audio
