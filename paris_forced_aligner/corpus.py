@@ -20,10 +20,9 @@ from paris_forced_aligner.phonological import Utterance, Silence, Word, Phone
 
 
 class CorpusClass():
-    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, raise_on_oov: bool = True, return_gold_labels: bool = False):
+    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False):
         self.corpus_path: str = os.path.expanduser(corpus_path)
         self.pronunciation_dictionary: PronunciationDictionary = pronunciation_dictionary
-        self.raise_on_oov = raise_on_oov
         self.return_gold_labels = return_gold_labels
 
     def extract_files(self):
@@ -92,7 +91,7 @@ class YoutubeCorpus(CorpusClass):
                 if self.save_wavs:
                     idx_starts_ends.append((i, int(start / sr  * 16000), int(end / sr * 16000)))
                 try:
-                    yield AudioFile(cap_name, transcription, self.pronunciation_dictionary, wavobj=(wav[:, start:end], sr), raise_on_oov=self.raise_on_oov, offset=start)
+                    yield AudioFile(cap_name, transcription, self.pronunciation_dictionary, wavobj=(wav[:, start:end], sr), offset=start)
                 except OutOfVocabularyException as e:
                     print(e)
                     continue
@@ -122,8 +121,8 @@ class YoutubeCorpus(CorpusClass):
 
 
 class LibrispeechCorpus(CorpusClass):
-    def __init__(self, corpus_path: str, raise_on_oov: bool = True):
-        super().__init__(corpus_path, LibrispeechDictionary(), raise_on_oov, False)
+    def __init__(self, corpus_path: str):
+        super().__init__(corpus_path, LibrispeechDictionary(), False)
 
     def extract_files(self, return_gold_labels):
         if return_gold_labels:
@@ -138,7 +137,7 @@ class LibrispeechCorpus(CorpusClass):
                         filename, transcription = line.strip().split(' ', 1)
                         filename = os.path.join(d, f"{filename}.flac")
                         try:
-                            yield AudioFile(filename, transcription, self.pronunciation_dictionary, raise_on_oov=self.raise_on_oov)
+                            yield AudioFile(filename, transcription, self.pronunciation_dictionary)
                         except OutOfVocabularyException:
                             continue
 
@@ -221,7 +220,7 @@ class TIMITCorpus(CorpusClass):
                     for base in utterance.base_units:
                         if base.label not in self.pronunciation_dictionary.phonemic_inventory:
                             raise OutOfVocabularyException()
-                    audio = AudioFile(wav_f, utterance.transcription, self.pronunciation_dictionary, raise_on_oov=self.raise_on_oov)
+                    audio = AudioFile(wav_f, utterance.transcription, self.pronunciation_dictionary)
                 except OutOfVocabularyException:
                     continue 
 
@@ -286,7 +285,7 @@ class BuckeyeCorpus(CorpusClass):
 
                                 if utterance.words != []:
                                     try:
-                                        audio = AudioFile(track.name, utterance.transcription, self.pronunciation_dictionary, wavobj=(wav[:, utterance.start:utterance.end], 16000), raise_on_oov=self.raise_on_oov)
+                                        audio = AudioFile(track.name, utterance.transcription, self.pronunciation_dictionary, wavobj=(wav[:, utterance.start:utterance.end], 16000))
                                     except OutOfVocabularyException:
                                         continue 
                                     if return_gold_labels:

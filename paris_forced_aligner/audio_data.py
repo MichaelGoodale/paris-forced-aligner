@@ -1,13 +1,13 @@
+import os
+import re
+from typing import Union, BinaryIO, Optional, Mapping, List, Set, Tuple
+
 import torch
 import torchaudio
 
-from torchaudio.transforms import MFCC, Resample
+from torchaudio.transforms import Resample
 from torch import Tensor
-
-import os
-import re
-import urllib.request
-from typing import Callable, Union, BinaryIO, Optional, Mapping, List, Set, Tuple
+from num2words import num2words
 
 from paris_forced_aligner.utils import data_directory, download_data_file
 from paris_forced_aligner.ipa_data import arpabet_to_ipa
@@ -20,13 +20,16 @@ class PronunciationDictionary:
     silence = "<SIL>"
     OOV = "<OOV>"
 
-    def __init__(self):
+    def __init__(self, use_G2P:bool = False, lang='en'):
         self.lexicon: Mapping[str, List[str]] = {}
         self.phonemic_inventory: Set[str] = set([PronunciationDictionary.silence])
         self.phone_to_phoneme: Mapping[str, str] = {}
         self.load_lexicon()
-        self.phonemic_mapping: Mapping[str, int] = {phone: i+1 for i, phone in enumerate(sorted(self.phonemic_inventory))}
+        self.phonemic_mapping: Mapping[str, int] = {phone: i+1 for i, phone in \
+                                            enumerate(sorted(self.phonemic_inventory))}
         self.index_mapping: Mapping[int, str] = {v:k for k, v in self.phonemic_mapping.items()}
+        self.use_G2P = use_G2P
+        self.lang = lang
 
     def load_lexicon(self):
         '''Function to load lexicon and phonemic inventory'''
@@ -38,7 +41,7 @@ class PronunciationDictionary:
     def index_to_phone(self, idx: int) -> str:
         return self.index_mapping[idx]
 
-    def get_spelling(self, word: str) -> List[str]:
+    def add_G2P_spelling(self, word: str):
         raise NotImplementedError("G2P models not yet available")
 
     def add_words_from_utterance(self, utterance: Utterance):
@@ -46,9 +49,35 @@ class PronunciationDictionary:
             if word.label not in self.lexicon:
                 self.lexicon[word.label] = [p.label for p in word.phones]
 
+    def split_sentence(self, sentence:str) -> List[str]:
+        return_sentence = []
+        for word in sentence.strip('-').split():
+            if word.isdigit():
+                word = num2words(int(word), lang=self.lang).strip('-').split(' ')
+                return_sentence += word.upper()
+            else:
+                return_sentence.append(word.upper())
+        return return_sentence
+
+    def spell_sentence(self, sentence: str, return_words: bool = True):
+        sentence = self.split_sentence(sentence)
+        spelling: List[str] = [PronunciationDictionary.silence]
+
+        for word in sentence:
+            if word not in self.lexicon:
+                if not self.use_G2P:
+                    raise OutOfVocabularyException(f"{word} is not present in the lexicon")
+                self.add_G2P_spelling(word)
+
+            spelling += self.lexicon[word]
+            spelling.append(PronunciationDictionary.silence)
+
+        if return_words:
+            return spelling, sentence
+        return spelling
 
 class LibrispeechDictionary(PronunciationDictionary):
-
+    LIBRISPEECH_URL = 'https://www.openslr.org/resources/11/librispeech-lexicon.txt'
     def __init__(self, remove_stress=False):
         self.remove_stress = remove_stress
         super().__init__()
@@ -58,7 +87,7 @@ class LibrispeechDictionary(PronunciationDictionary):
 
         lexicon_path = os.path.join(data_directory, 'librispeech-lexicon.txt')
         if not os.path.exists(lexicon_path):
-            download_data_file('https://www.openslr.org/resources/11/librispeech-lexicon.txt', lexicon_path)
+            download_data_file(LibrispeechDictionary.LIBRISPEECH_URL, lexicon_path)
 
         with open(lexicon_path) as f:
             for line in f:
@@ -72,7 +101,8 @@ class LibrispeechDictionary(PronunciationDictionary):
                     self.phonemic_inventory.add(phone)
 
 class TSVDictionary(PronunciationDictionary):
-    def __init__(self, lexicon_path: str, seperator: str='\t', phone_to_phoneme: Optional[Mapping[str, str]] = None):
+    def __init__(self, lexicon_path: str, seperator: str='\t', \
+            phone_to_phoneme: Optional[Mapping[str, str]] = None):
         super().__init__()
         self.lexicon_path = lexicon_path
         self.seperator = seperator
@@ -95,21 +125,20 @@ class TSVDictionary(PronunciationDictionary):
                         self.phone_to_phoneme[phone] = phone
 
 class AudioFile:
-    def __init__(self, filename: str, transcription: str, pronunciation_dictionary: PronunciationDictionary,
+    def __init__(self, filename: str, transcription: str,
+            pronunciation_dictionary: PronunciationDictionary,
             fileobj: Optional[BinaryIO] = None,
             wavobj: Optional[Tuple[Tensor, int]] = None,
-            raise_on_oov: bool=True, 
             offset: int = 0):
 
         self.filename = filename
         self.pronunciation_dictionary = pronunciation_dictionary
         self.load_audio(fileobj, wavobj)
 
-        #Treat words with hyphens as two words.
-        transcription = transcription.replace('-', ' ')
+        self.transcription, self.words = pronunciation_dictionary.spell_sentence(transcription, return_words=True)
+        self.tensor_transcription = torch.tensor([self.pronunciation_dictionary.phonemic_mapping[x] \
+                                                    for x in self.transcription])
 
-        self.transcription, self.tensor_transcription = self.get_phone_transcription(transcription, raise_on_oov)
-        self.words = self.get_word_transcription(transcription)
         self.offset = offset
 
     def load_audio(self, fileobj: Optional[BinaryIO] = None, wavobj = None):
@@ -125,25 +154,6 @@ class AudioFile:
 
         if sr != 16000:
             self.wav = Resample(sr, 16000)(self.wav)
-
-    def get_phone_transcription(self, transcription: str, raise_on_oov: bool=True) -> Tuple[List[str], Tensor]:
-        new_transcription: List[str] = [PronunciationDictionary.silence]
-
-        for word in transcription.split(' '):
-            try:
-                new_transcription += self.pronunciation_dictionary.lexicon[word] 
-            except KeyError:
-                if raise_on_oov:
-                    raise OutOfVocabularyException(f"{word} is not present in the librispeech lexicon")
-                else:
-                    new_transcription.append(self.pronunciation_dictionary.get_spelling(word))
-            new_transcription.append(PronunciationDictionary.silence)
-
-        new_transcription_tensor = torch.tensor([self.pronunciation_dictionary.phonemic_mapping[x] for x in new_transcription])
-        return new_transcription, new_transcription_tensor
-
-    def get_word_transcription(self, transcription: str) -> List[str]:
-        return transcription.split(' ')
 
     def move_to_device(self, device:str):
         self.wav = self.wav.to(device)
