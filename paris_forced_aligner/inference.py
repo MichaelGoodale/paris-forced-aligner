@@ -14,7 +14,6 @@ class ForcedAligner:
         X = self.model(audio.wav)
         y = audio.tensor_transcription
         beams = [(0, y, [])]
-
         for t in range(X.shape[0]):
             #Kinda funky candidates dict to prevent repeat paths based on prob
             #Shouldn't technically be based only on prob but likelihood is small of collisions
@@ -33,15 +32,15 @@ class ForcedAligner:
 
         inference = []
         old_x = None
+
         for t, x in enumerate(states):
             if old_x != x:
-                inference.append((audio.pronunciation_dictionary.index_to_phone(x), self.model.get_idx_in_sample(t)))
+                inference.append((audio.pronunciation_dictionary.index_to_phone(x), self.model.get_idx_in_sample(t) + audio.offset))
             old_x = x
 
         word_idx = 0
         utterance = []
         current_word = []
-
         for i, (phone, start) in enumerate(inference):
             if i < len(inference) - 1:
                 end = inference[i+1][1]
@@ -49,13 +48,13 @@ class ForcedAligner:
                 end = audio.wav.shape[-1]
 
             if phone == "<SIL>":
-                utterance.append(Silence(start, end))
                 if current_word != []:
                     utterance.append(Word(current_word, audio.words[word_idx]))
                     word_idx += 1
                     current_word = []
+                utterance.append(Silence(start, end))
             else:
-                current_word.append(Phone(phone, start, end))
-
+                if start != end:
+                    current_word.append(Phone(phone, start, end))
         return Utterance(utterance)
 

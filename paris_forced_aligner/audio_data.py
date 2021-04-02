@@ -98,7 +98,8 @@ class AudioFile:
     def __init__(self, filename: str, transcription: str, pronunciation_dictionary: PronunciationDictionary,
             fileobj: Optional[BinaryIO] = None,
             wavobj: Optional[Tuple[Tensor, int]] = None,
-            raise_on_oov: bool=True):
+            raise_on_oov: bool=True, 
+            offset: int = 0):
 
         self.filename = filename
         self.pronunciation_dictionary = pronunciation_dictionary
@@ -109,6 +110,7 @@ class AudioFile:
 
         self.transcription, self.tensor_transcription = self.get_phone_transcription(transcription, raise_on_oov)
         self.words = self.get_word_transcription(transcription)
+        self.offset = offset
 
     def load_audio(self, fileobj: Optional[BinaryIO] = None, wavobj = None):
         if fileobj is not None:

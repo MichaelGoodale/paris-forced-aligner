@@ -35,7 +35,7 @@ class CorpusClass():
 class YoutubeCorpus(CorpusClass):
 
     def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, language: str = 'en', audio_directory: Optional[str] = None, save_wavs: bool = False):
-        super().__init__(corpus_path, pronunciation_dictionary, False, False)
+        super().__init__(corpus_path, pronunciation_dictionary, True, False)
         self.youtube_files = []
         self.save_wavs = save_wavs
 
@@ -91,7 +91,11 @@ class YoutubeCorpus(CorpusClass):
 
                 if self.save_wavs:
                     idx_starts_ends.append((i, int(start / sr  * 16000), int(end / sr * 16000)))
-                yield AudioFile(cap_name, transcription, self.pronunciation_dictionary, wavobj=(wav[:, start:end], sr), raise_on_oov=self.raise_on_oov)
+                try:
+                    yield AudioFile(cap_name, transcription, self.pronunciation_dictionary, wavobj=(wav[:, start:end], sr), raise_on_oov=self.raise_on_oov, offset=start)
+                except OutOfVocabularyException as e:
+                    print(e)
+                    continue
 
             if self.save_wavs:
                 with open(subtitle_file.replace(sub_file_ending, '.txt'), 'w') as f:

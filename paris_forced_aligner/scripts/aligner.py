@@ -5,6 +5,7 @@ from paris_forced_aligner.utils import download_data_file, data_directory
 from paris_forced_aligner.scripts.utils import process_model_args, add_model_args, add_dictionary_args, process_dictionary_args
 
 from paris_forced_aligner.inference import ForcedAligner
+from paris_forced_aligner.phonological import Utterance
 from paris_forced_aligner.corpus import LibrispeechCorpus, YoutubeCorpus
 from paris_forced_aligner.audio_data import AudioFile, LibrispeechDictionary
 
@@ -110,7 +111,8 @@ def align():
                     name_utt_dict[name].append(utterance)
 
             for name, utterances in name_utt_dict.items():
-                big_utterance = corpus.stitch_youtube_utterances(name, utterances)
+                big_utterance = Utterance([d for u in utterances for d in u.data])
+                #big_utterance = corpus.stitch_youtube_utterances(name, utterances)
                 output_file = name + '.TextGrid' if args.save_as == 'textgrid' else '.csv'
                 if not args.overwrite and os.path.exists(output_file):
                     print(f"{output_file} already exists, pass --overwrite to overwrite")

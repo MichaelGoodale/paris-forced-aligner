@@ -19,26 +19,33 @@ class PhonemeDetector(nn.Module):
         self.vocab_size = vocab_size
         self.wav2vec = load_wav2vec_model(filepath)
         #TODO: Find dynamic way to get this.
-        self.time_transform = nn.Upsample(scale_factor=upscale, mode='linear')
+        self.time_transform = nn.Upsample(scale_factor=2, mode='linear')
 
         #Kernel_size * 25 ms = receptive field of conv
-        self.conv1 = nn.Conv1d(768, internal_vector_size, kernel_size*upscale)
+        self.conv1 = nn.Conv1d(768, internal_vector_size, 4)
         self.batch_norm1 = nn.GroupNorm(internal_vector_size, internal_vector_size)
+
+        self.conv2 = nn.Conv1d(internal_vector_size, internal_vector_size, 2)
+        self.batch_norm2 = nn.GroupNorm(internal_vector_size, internal_vector_size)
 
         self.upscale = upscale 
         self.kernel_size = kernel_size
         self.fc = nn.Linear(internal_vector_size, vocab_size)
 
     def get_upscaled_length(self, length: int) -> int:
-        return self.upscale*length - self.kernel_size*self.upscale + 1
+        return 2*(2*length - 4 +1) - 2 + 1
 
     def forward(self, wav_input_16khz, padding_mask=None):
         c = self.wav2vec.forward(wav_input_16khz, mask=False, features_only=True, padding_mask=padding_mask)
         #c['x'] = (N, L, C)
         x = self.time_transform(c['x'].transpose(1,2))
         x = F.gelu(self.batch_norm1(self.conv1(x)))
+        x = self.time_transform(x)
+        x = F.gelu(self.batch_norm2(self.conv2(x)))
         x = x.transpose(1,2).transpose(0,1)
-        x = F.log_softmax(self.fc(x), dim=-1).to(torch.float64)
+        x = F.relu(self.fc(x))
+        x[:, :, 0] = -100.0
+        x = F.log_softmax(x, dim=-1).to(torch.float64)
 
         if padding_mask is not None:
             x_lengths = self.get_upscaled_length((1 - c['padding_mask'].long()).sum(-1))
@@ -46,10 +53,10 @@ class PhonemeDetector(nn.Module):
         return x
 
     def get_idx_in_sample(self, idx: int) -> int:
-        return ((idx + self.kernel_size * self.upscale + 1 ) // self.upscale) * PhonemeDetector.wav2vec_to_16khz
+        return ((idx + 7) / 4) * PhonemeDetector.wav2vec_to_16khz 
 
     def get_sample_in_idx(self, sample_idx: int) -> int:
-        return self.get_upscaled_length(sample_idx // PhonemeDetector.wav2vec_to_16khz)
+        return int(self.get_upscaled_length(sample_idx / PhonemeDetector.wav2vec_to_16khz))
     
     def freeze_encoder(self):
         for name, param in self.wav2vec.named_parameters():
@@ -66,4 +73,5 @@ class PhonemeDetector(nn.Module):
 
     def init_weights(self):
         nn.init.xavier_uniform_(self.conv1.weight)
+        nn.init.xavier_uniform_(self.conv2.weight)
         nn.init.xavier_uniform_(self.fc.weight)
