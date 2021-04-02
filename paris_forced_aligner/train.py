@@ -2,13 +2,13 @@ import os
 import time
 
 from paris_forced_aligner.corpus import LibrispeechCorpus, CorpusClass
-from paris_forced_aligner.model import PhonemeDetector
+from paris_forced_aligner.model import PhonemeDetector, AlignmentPretrainingModel
 
 import torch
 from torch.nn import CTCLoss, CrossEntropyLoss
 import torch.nn.functional as F
 
-def prepare_audio_batch(batch):
+def prepare_audio_batch(batch, device):
     wav_lengths = torch.tensor([a.wav.shape[1] for a in batch])
     input_wavs = torch.ones((len(batch), wav_lengths.max()))
     padding_mask = torch.ones((len(batch), wav_lengths.max()))
@@ -17,6 +17,8 @@ def prepare_audio_batch(batch):
         input_wavs[i, :length] = a.wav
         padding_mask[i, :length] = 0
 
+    input_wavs = input_wavs.to(device)
+    padding_mask = padding_mask.to(device)
     return input_wavs, padding_mask
 
 def batched_audio_files(corpus, batch_size=1, device='cpu', memory_max_length=260000):
@@ -30,7 +32,7 @@ def batched_audio_files(corpus, batch_size=1, device='cpu', memory_max_length=26
 
             if len(batch) == batch_size:
                 with torch.no_grad():
-                    input_wavs, padding_mask = prepare_audio_batch(batch)
+                    input_wavs, padding_mask = prepare_audio_batch(batch, device)
                 yield input_wavs, padding_mask, utt_batch, None
                 utt_batch = []
                 batch = []
@@ -41,7 +43,7 @@ def batched_audio_files(corpus, batch_size=1, device='cpu', memory_max_length=26
 
             if len(batch) == batch_size:
                 with torch.no_grad():
-                    input_wavs, padding_mask = prepare_audio_batch(batch)
+                    input_wavs, padding_mask = prepare_audio_batch(batch, device)
 
                     transcription_lengths = torch.tensor([a.tensor_transcription.shape[0] for a in batch])
                     transcriptions = torch.zeros((batch_size, transcription_lengths.max()))
@@ -49,6 +51,9 @@ def batched_audio_files(corpus, batch_size=1, device='cpu', memory_max_length=26
                         transcriptions[i, :length] = a.tensor_transcription
 
                 batch = []
+
+                transcriptions = transcriptions.to(device)
+                transcription_lengths = transcription_lengths.to(device)
                 yield input_wavs, padding_mask, transcriptions, transcription_lengths
 
 def train(model: PhonemeDetector, 
@@ -89,9 +94,7 @@ def train(model: PhonemeDetector,
         gamma = 0.0
         lambda_coefficient = 0.0
         while i // accumulate_steps < n_steps:
-            for input_wavs, wav_lengths, transcriptions, transcription_lengths in batched_audio_files(corpus, batch_size=batch_size):
-                input_wavs = input_wavs.to(device)
-                wav_lengths = wav_lengths.to(device)
+            for input_wavs, wav_lengths, transcriptions, transcription_lengths in batched_audio_files(corpus, batch_size=batch_size, device=device):
 
                 X, X_lengths = model(input_wavs, padding_mask=wav_lengths)
 
@@ -110,8 +113,6 @@ def train(model: PhonemeDetector,
                     X = X.transpose(0, 1).transpose(1, 2)
                     loss = cross_entropy(X, transcriptions_mat) / accumulate_steps
                 else:
-                    transcriptions = transcriptions.to(device)
-                    transcription_lengths = transcription_lengths.to(device)
                     loss = ctc_loss_fn(X, transcriptions, X_lengths, transcription_lengths) / accumulate_steps
 
                 loss.backward()
