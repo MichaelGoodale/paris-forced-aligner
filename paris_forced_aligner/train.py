@@ -11,11 +11,11 @@ import torch.nn.functional as F
 def prepare_audio_batch(batch, device):
     wav_lengths = torch.tensor([a.wav.shape[1] for a in batch])
     input_wavs = torch.ones((len(batch), wav_lengths.max()))
-    padding_mask = torch.ones((len(batch), wav_lengths.max()))
+    padding_mask = torch.zeros((len(batch), wav_lengths.max()), dtype=torch.long)
 
     for i, (length, a) in enumerate(zip(wav_lengths, batch)):
         input_wavs[i, :length] = a.wav
-        padding_mask[i, :length] = 0
+        padding_mask[i, :length] = 1
 
     input_wavs = input_wavs.to(device)
     padding_mask = padding_mask.to(device)
@@ -92,14 +92,14 @@ def train(model: PhonemeDetector,
             i = checkpoint['steps']
 
         while i // accumulate_steps < n_steps:
-            for input_wavs, wav_lengths, transcriptions, transcription_lengths in batched_audio_files(corpus, batch_size=batch_size, device=device):
+            for input_wavs, padding_mask, transcriptions, transcription_lengths in batched_audio_files(corpus, batch_size=batch_size, device=device):
                 if not unfrozen and (i//accumulate_steps) >= unfreeze_after:
                     model.unfreeze_wav2vec()
                     model.freeze_encoder()
                     unfrozen = True
 
 
-                X, X_lengths = model(input_wavs, padding_mask=wav_lengths)
+                X, X_lengths = model(input_wavs, padding_mask=padding_mask)
 
                 if corpus.return_gold_labels:
                     transcriptions_mat = -100*torch.ones((len(X_lengths), X_lengths.max()), dtype=torch.long)

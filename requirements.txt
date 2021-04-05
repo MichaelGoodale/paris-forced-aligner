@@ -7,7 +7,6 @@ Cython==0.29.22
 dataclasses==0.6
 docopt==0.6.2
 editdistance==0.5.3
-fairseq==0.10.0
 hydra-core==1.0.6
 numpy==1.20.1
 num2words
@@ -21,6 +20,7 @@ SoundFile==0.10.3.post1
 TextGrid==1.5
 torch==1.8.0
 torchaudio==0.8.0
+transformers==4.4.2
 tqdm==4.59.0
 typing-extensions==3.7.4.3
 webvtt-py==0.4.6

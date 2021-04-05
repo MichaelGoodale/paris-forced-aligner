@@ -35,7 +35,7 @@ class ForcedAligner:
 
         for t, x in enumerate(states):
             if old_x != x:
-                inference.append((audio.pronunciation_dictionary.index_to_phone(x), self.model.get_idx_in_sample(t) + audio.offset))
+                inference.append((audio.pronunciation_dictionary.index_to_phone(x), int((t / X.shape[0]) * audio.wav.shape[1]) + audio.offset))
             old_x = x
 
         word_idx = 0
