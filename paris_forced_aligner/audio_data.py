@@ -1,4 +1,5 @@
 import os
+import random
 import re
 from typing import Union, BinaryIO, Optional, Mapping, List, Set, Tuple
 
@@ -12,6 +13,7 @@ from num2words import num2words
 from paris_forced_aligner.utils import data_directory, download_data_file
 from paris_forced_aligner.ipa_data import arpabet_to_ipa
 from paris_forced_aligner.phonological import Utterance
+from paris_forced_aligner.model import G2PModel
 
 class OutOfVocabularyException(Exception):
     """Raise for my specific kind of exception"""
@@ -20,15 +22,39 @@ class PronunciationDictionary:
     silence = "<SIL>"
     OOV = "<OOV>"
 
-    def __init__(self, use_G2P:bool = False, lang='en'):
+    def __init__(self, use_G2P:bool = True, lang='en', 
+            G2P_model_path: str = "en_G2P_model.pt",
+            train_G2P:bool = False,
+            train_params = {"n_epochs": 5, "lr": 3e-4}):
         self.lexicon: Mapping[str, List[str]] = {}
         self.phonemic_inventory: Set[str] = set([PronunciationDictionary.silence])
+        self.graphemic_inventory: Set[str] = set()
         self.phone_to_phoneme: Mapping[str, str] = {}
         self.load_lexicon()
         self.phonemic_mapping: Mapping[str, int] = {phone: i+1 for i, phone in \
                                             enumerate(sorted(self.phonemic_inventory))}
+
+        self.graphemic_mapping: Mapping[str, int] = {grapheme: i for i, grapheme in \
+                                            enumerate(sorted(self.graphemic_inventory))}
+
         self.index_mapping: Mapping[int, str] = {v:k for k, v in self.phonemic_mapping.items()}
         self.use_G2P = use_G2P
+        if use_G2P:
+            self.grapheme_pad_idx = len(self.graphemic_inventory) 
+            self.grapheme_oov_idx = len(self.graphemic_inventory) + 1
+            self.phoneme_pad_idx = len(self.phonemic_inventory)
+            self.phoneme_start_idx = len(self.phonemic_inventory) + 1
+            self.phoneme_end_idx = len(self.phonemic_inventory) + 2
+            self.G2P_model = G2PModel(len(self.graphemic_inventory) + 2, len(self.phonemic_inventory) + 3,
+                    self.grapheme_pad_idx, self.phoneme_pad_idx)
+            if train_G2P:
+                self.train_params = train_params
+                self.cross_loss = torch.nn.NLLLoss(ignore_index=self.phoneme_pad_idx)
+                self.optimizer = torch.optim.Adam(self.G2P_model.parameters(), lr=0.0003)
+                self.train_G2P_model(G2P_model_path)
+            else:
+                self.G2P_model.load_state_dict(torch.load(G2P_model_path))
+
         self.lang = lang
 
     def load_lexicon(self):
@@ -41,8 +67,51 @@ class PronunciationDictionary:
     def index_to_phone(self, idx: int) -> str:
         return self.index_mapping[idx]
 
+    def teach_model(self, word_batch, pron_batch):
+        word_batch_length = max(len(x) for x in word_batch)
+        pron_batch_length = max(len(x) for x in pron_batch)
+        word_batch = torch.LongTensor([w + [self.grapheme_pad_idx]*(word_batch_length - len(w)) \
+                for w in word_batch]).T
+        pron_batch = torch.LongTensor([[self.phoneme_start_idx] + p + [self.phoneme_end_idx] + [self.phoneme_pad_idx]*(pron_batch_length - len(p)) \
+                for p in pron_batch]).T
+        y = self.G2P_model(word_batch, pron_batch[:-1])
+        loss = self.cross_loss(y.transpose(0, 1).transpose(1,2), pron_batch[1:].T)
+        loss.backward()
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+        return loss.item()
+
+    def train_G2P_model(self, model_path):
+        n_epochs = self.train_params['n_epochs']
+        batch_size = 64
+        epoch = 0
+        words = list(self.lexicon.keys())
+        random.Random(1337).shuffle(words)
+
+        while epoch < n_epochs:
+            word_batch = []
+            pron_batch = []
+            for i, word in enumerate(words):
+                word_batch.append([self.graphemic_mapping[g] for g in word])
+                pron_batch.append([self.phonemic_mapping[p] for p in self.lexicon[word]])
+                if i % batch_size == 0:
+                    loss = self.teach_model(word_batch, pron_batch)
+                    word_batch = []
+                    pron_batch = []
+                    if (i // batch_size) % 10 == 0:
+                        print(f"Loss {loss}, Epoch {epoch+1} / {n_epochs}, Step {i}")
+            epoch += 1
+            if len(word_batch) > 0:
+                self.teach_model(word_batch, pron_batch)
+        torch.save(self.G2P_model.state_dict(), model_path)
+
     def add_G2P_spelling(self, word: str):
-        raise NotImplementedError("G2P models not yet available")
+        word = torch.LongTensor([[self.graphemic_mapping[w] for w in word]]).T
+        pronunciation = torch.LongTensor([[self.phoneme_start_idx]]).T
+        while pronunciation[-1, 0] != self.phoneme_end_idx:
+            y = self.G2P_model(word, pronunciation, inference=True)
+            pronunciation = torch.cat((pronunciation, torch.argmax(y[-1, :, :], -1).unsqueeze(0)))
+        print(pronunciation)
 
     def add_words_from_utterance(self, utterance: Utterance):
         for word in utterance.words:
@@ -80,25 +149,34 @@ class LibrispeechDictionary(PronunciationDictionary):
     LIBRISPEECH_URL = 'https://www.openslr.org/resources/11/librispeech-lexicon.txt'
     def __init__(self, remove_stress=False):
         self.remove_stress = remove_stress
+        self.get_lexicon_file()
         super().__init__()
+
+    def get_lexicon_file(self):
+        self.lexicon_path = os.path.join(data_directory, 'librispeech-lexicon.txt')
+        if not os.path.exists(self.lexicon_path):
+            download_data_file(LibrispeechDictionary.LIBRISPEECH_URL, self.lexicon_path)
+
+    def get_word_and_pronunciation(self, line):
+        word, pronunciation = re.split(r'\s+', line.strip(), maxsplit=1)
+        if self.remove_stress:
+            pronunciation = re.sub(r'[1-9]+', '', pronunciation)
+            pronunciation = re.sub(r' \w+0', ' AX', pronunciation)
+        return word, pronunciation.split(' ')
+
 
     def load_lexicon(self):
         self.phone_to_phoneme: Mapping[str, str] = arpabet_to_ipa
 
-        lexicon_path = os.path.join(data_directory, 'librispeech-lexicon.txt')
-        if not os.path.exists(lexicon_path):
-            download_data_file(LibrispeechDictionary.LIBRISPEECH_URL, lexicon_path)
-
-        with open(lexicon_path) as f:
+        with open(self.lexicon_path) as f:
             for line in f:
-                word, pronunciation = re.split(r'\s+', line.strip(), maxsplit=1)
-                if self.remove_stress:
-                    pronunciation = re.sub(r'[1-9]+', '', pronunciation)
-                    pronunciation = re.sub(r' \w+0', ' AX', pronunciation)
-
-                self.lexicon[word] = pronunciation.split(' ')
+                word, pronunciation = self.get_word_and_pronunciation(line)
+                self.lexicon[word] = pronunciation
                 for phone in self.lexicon[word]:
                     self.phonemic_inventory.add(phone)
+
+                for letter in word:
+                    self.graphemic_inventory.add(letter)
 
 class TSVDictionary(PronunciationDictionary):
     def __init__(self, lexicon_path: str, seperator: str='\t', \
@@ -113,7 +191,6 @@ class TSVDictionary(PronunciationDictionary):
             self.phone_to_phoneme: Mapping[str, str] = {}
             self.already_ipa = True
 
-
     def load_lexicon(self):
         with open(self.lexicon_path) as f:
             for line in f:
@@ -123,6 +200,9 @@ class TSVDictionary(PronunciationDictionary):
                     self.phonemic_inventory.add(phone)
                     if self.already_ipa:
                         self.phone_to_phoneme[phone] = phone
+
+                for letter in word:
+                    self.graphemic_inventory.add(letter)
 
 class AudioFile:
     def __init__(self, filename: str, transcription: str,

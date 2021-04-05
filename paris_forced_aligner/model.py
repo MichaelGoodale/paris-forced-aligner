@@ -1,8 +1,48 @@
+import math 
+
 import torch
 
 from torch import nn
 import torch.nn.functional as F
 from transformers import Wav2Vec2Processor, Wav2Vec2Model
+
+# Source: https://pytorch.org/tutorials/beginner/transformer_tutorial
+class PositionalEncoding(nn.Module):
+
+    def __init__(self, d_model, dropout=0.1, max_len=5000):
+        super(PositionalEncoding, self).__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0).transpose(0, 1)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x):
+        x = x + self.pe[:x.size(0), :]
+        return self.dropout(x)
+
+class G2PModel(nn.Module):
+    def __init__(self, grapheme_vocab_size, phoneme_vocab_size, grapheme_pad, phoneme_pad, embedding_dim=128):
+        super().__init__()
+        self.embedding_dim = embedding_dim
+
+        self.grapheme_embedding = nn.Embedding(grapheme_vocab_size, embedding_dim, padding_idx=grapheme_pad)
+        self.phoneme_embedding = nn.Embedding(phoneme_vocab_size, embedding_dim, padding_idx=phoneme_pad)
+        self.pos_encoding = PositionalEncoding(embedding_dim)
+        self.transformer = nn.Transformer(embedding_dim, nhead=4, num_encoder_layers=4, num_decoder_layers=4, dim_feedforward=256)
+        self.fc = nn.Linear(embedding_dim, phoneme_vocab_size)
+
+    def forward(self, src, tgt, inference=False):
+        src = self.pos_encoding(self.grapheme_embedding(src) * math.sqrt(self.embedding_dim))
+        tgt = self.pos_encoding(self.phoneme_embedding(tgt) * math.sqrt(self.embedding_dim))
+        mask = self.transformer.generate_square_subsequent_mask(tgt.shape[0])
+        x = self.transformer(src, tgt, tgt_mask=mask)
+        x = self.fc(x)
+        return F.log_softmax(x, dim=-1)
 
 class Upscaler(nn.Module):
     def __init__(self, input_dim, internal_dim):
