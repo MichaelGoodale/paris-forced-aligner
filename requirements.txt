@@ -10,6 +10,7 @@ editdistance==0.5.3
 fairseq==0.10.0
 hydra-core==1.0.6
 numpy==1.20.1
+num2words
 omegaconf==2.0.6
 portalocker==2.0.0
 pycparser==2.20

@@ -60,6 +60,9 @@ def process_model_args(parser: argparse.ArgumentParser, args: argparse.Namespace
     else:
         model = PhonemeDetector(wav2vec_model_path, vocab_size, args.internal_vector_dim)
 
+    if device != "cpu":
+        model.wav2vec.cuda()
+
     if args.checkpoint:
         checkpoint = torch.load(args.checkpoint, map_location=device)
         model.load_state_dict(checkpoint['model_state_dict'])
