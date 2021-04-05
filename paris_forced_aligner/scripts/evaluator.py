@@ -18,7 +18,7 @@ def evaluate():
     parser.add_argument("--output_csv", type=str, required=True)
     args = parser.parse_args()
     pronunciation_dictionary, vocab_size = process_dictionary_args(parser, args)
-    model = process_model_args(parser, args, vocab_size)
+    model, _ = process_model_args(parser, args, vocab_size)
 
     forced_aligner = ForcedAligner(model)
 

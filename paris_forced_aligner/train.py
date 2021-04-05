@@ -65,7 +65,7 @@ def train(model: PhonemeDetector,
         n_steps:int = 30000,
         unfreeze_after:int = 10000,
         output_model_every:int = 1000,
-        starting_lambda = 0.5,
+        checkpoint=None,
         device:str = 'cpu'):
     ''' Example usage:
 
@@ -74,14 +74,8 @@ def train(model: PhonemeDetector,
         train(model)
     '''
     os.makedirs(output_directory, exist_ok=True)
-    model.to(device)
-    if device != 'cpu':
-        model.wav2vec.cuda()
-
     model.train()
     model.freeze_wav2vec()
-    lambda_coefficent = starting_lambda
-
     ctc_loss_fn = CTCLoss()
     cross_entropy = CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -89,12 +83,21 @@ def train(model: PhonemeDetector,
     losses = []
 
     unfrozen = False
-    with open(f"{output_directory}/log.txt", 'w') as f:
+    with open(f"{output_directory}/log.txt", 'a') as f:
         i = 0
-        gamma = 0.0
-        lambda_coefficient = 0.0
+
+        if checkpoint is not None:
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            loss = checkpoint['loss']
+            i = checkpoint['steps']
+
         while i // accumulate_steps < n_steps:
             for input_wavs, wav_lengths, transcriptions, transcription_lengths in batched_audio_files(corpus, batch_size=batch_size, device=device):
+                if not unfrozen and (i//accumulate_steps) >= unfreeze_after:
+                    model.unfreeze_wav2vec()
+                    model.freeze_encoder()
+                    unfrozen = True
+
 
                 X, X_lengths = model(input_wavs, padding_mask=wav_lengths)
 
@@ -125,15 +128,17 @@ def train(model: PhonemeDetector,
                     f.write(f'{i/accumulate_steps} {sum(losses)}\n')
                     losses = []
 
-                if not unfrozen and (i//accumulate_steps) >= unfreeze_after:
-                    model.unfreeze_wav2vec()
-                    model.freeze_encoder()
-                    unfrozen = True
-
                 if i > 0 and (i//accumulate_steps) % output_model_every == 0:
-                    torch.save(model.state_dict(), f"{output_directory}/{i}_model.pt")
+                    torch.save({
+                        'steps': i,
+                        'model_state_dict': model.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                        'loss': loss,
+                        },
+                    f"{output_directory}/{i}_model.pt")
 
                 i += 1
+
                 if i > n_steps: 
                     break
 

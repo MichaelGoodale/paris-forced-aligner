@@ -6,7 +6,7 @@ import torch
 
 from paris_forced_aligner.audio_data import PronunciationDictionary, TSVDictionary, LibrispeechDictionary
 from paris_forced_aligner.utils import data_directory, download_data_file
-from paris_forced_aligner.model import PhonemeDetector
+from paris_forced_aligner.model import PhonemeDetector, AlignmentPretrainingModel
 
 wav2vec_urls = {
         'small': ('wav2vec2_small.pt', 'https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_small.pt'),
@@ -36,7 +36,7 @@ def process_dictionary_args(parser: argparse.ArgumentParser, args: argparse.Name
         dictionary = TSVDictionary(args.dictionary_path)
     return dictionary, dictionary.vocab_size()
 
-def process_model_args(parser: argparse.ArgumentParser, args: argparse.Namespace, vocab_size: int) -> str:
+def process_model_args(parser: argparse.ArgumentParser, args: argparse.Namespace, vocab_size: int, pretraining: bool = False, device:str = 'cpu') -> str:
     if args.wav2vec_model and args.wav2vec_model_path:
         parser.error("Please provide a wav2vec_model or wav2vec_model_path, not both.")
 
@@ -55,8 +55,16 @@ def process_model_args(parser: argparse.ArgumentParser, args: argparse.Namespace
     else:
         parser.error("You must pass either a wav2vec_model or wav2vec_model_path")
 
-    model = PhonemeDetector(wav2vec_model_path, vocab_size, args.internal_vector_dim)
+    if pretraining:
+        model = AlignmentPretrainingModel(wav2vec_model_path, vocab_size, args.internal_vector_dim)
+    else:
+        model = PhonemeDetector(wav2vec_model_path, vocab_size, args.internal_vector_dim)
+
     if args.checkpoint:
-        model.load_state_dict(torch.load(args.checkpoint, map_location=torch.device('cpu')))
+        checkpoint = torch.load(args.checkpoint, map_location=device)
+        model.load_state_dict(checkpoint['model_state_dict'])
         model.eval()
-    return model
+    else:
+        checkpoint = None
+
+    return model, checkpoint

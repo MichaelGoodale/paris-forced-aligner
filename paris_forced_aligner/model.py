@@ -5,10 +5,9 @@ import torch.nn.functional as F
 import fairseq
 
 def load_wav2vec_model(filepath):
-    model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([filepath], task=None)
+    model, cfg = fairseq.checkpoint_utils.load_model_ensemble([filepath])
     model = model[0]
-    return model
-
+    return model, cfg
 
 class Upscaler(nn.Module):
     def __init__(self, input_dim, internal_dim):
@@ -39,8 +38,8 @@ class PhonemeDetector(nn.Module):
         super().__init__()
         self.filepath = filepath
         self.vocab_size = vocab_size
-        self.wav2vec = load_wav2vec_model(filepath)
-        self.upscaler = Upscaler(768, internal_vector_size)
+        self.wav2vec, cfg = load_wav2vec_model(filepath)
+        self.upscaler = Upscaler(cfg.encoder_embed_dim, internal_vector_size)
         self.fc = nn.Linear(internal_vector_size, vocab_size)
 
     def forward(self, wav_input_16khz, padding_mask=None):

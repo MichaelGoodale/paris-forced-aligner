@@ -26,7 +26,13 @@ def train_model():
 
     args = parser.parse_args()
     pronunciation_dictionary, vocab_size = process_dictionary_args(parser, args)
-    model = process_model_args(parser, args, vocab_size)
+
+    if args.gpu:
+        device = 'cuda:0'
+    else:
+        device = 'cpu'
+
+    model, checkpoint = process_model_args(parser, args, vocab_size, device=device)
 
     if args.corpus_type == 'librispeech':
         if args.dictionary != "librispeech":
@@ -39,16 +45,7 @@ def train_model():
     elif args.corpus_type == 'timit':
         corpus = TIMITCorpus(args.corpus_path, pronunciation_dictionary, return_gold_labels=True)
 
-    if args.gpu:
-        device = 'cuda:0'
-        model.cuda()
-    else:
-        device = 'cpu'
-
-    if args.checkpoint:
-        model.load_state_dict(torch.load(args.checkpoint, map_location=device))
-
-    train(model, corpus, 
+    train(model, corpus,
         output_directory=args.output_dir,
         batch_size=args.batch_size,
         lr=args.learning_rate,
@@ -56,6 +53,7 @@ def train_model():
         n_steps=args.n_steps,
         unfreeze_after=args.unfreeze_after,
         output_model_every=args.output_model_every,
+        checkpoint=checkpoint,
         device=device)
 
 if __name__ == "__main__":
