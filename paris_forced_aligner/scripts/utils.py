@@ -62,6 +62,7 @@ def process_model_args(parser: argparse.ArgumentParser, args: argparse.Namespace
 
     if device != "cpu":
         model.wav2vec.cuda()
+        model = model.to(device)
 
     if args.checkpoint:
         checkpoint = torch.load(args.checkpoint, map_location=device)
