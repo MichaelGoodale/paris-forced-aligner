@@ -25,7 +25,7 @@ class PronunciationDictionary:
     def __init__(self, use_G2P:bool = True, lang='en', 
             G2P_model_path: str = "en_G2P_model.pt",
             train_G2P:bool = False,
-            train_params = {"n_epochs": 5, "lr": 3e-4}):
+            train_params = {"n_epochs": 5, "lr": 3e-4, "batch_size":64}):
         self.lexicon: Mapping[str, List[str]] = {}
         self.phonemic_inventory: Set[str] = set([PronunciationDictionary.silence])
         self.graphemic_inventory: Set[str] = set()
@@ -83,7 +83,7 @@ class PronunciationDictionary:
 
     def train_G2P_model(self, model_path):
         n_epochs = self.train_params['n_epochs']
-        batch_size = 64
+        batch_size = self.train_params['batch_size']
         epoch = 0
         words = list(self.lexicon.keys())
         random.Random(1337).shuffle(words)
@@ -147,10 +147,10 @@ class PronunciationDictionary:
 
 class LibrispeechDictionary(PronunciationDictionary):
     LIBRISPEECH_URL = 'https://www.openslr.org/resources/11/librispeech-lexicon.txt'
-    def __init__(self, remove_stress=False):
+    def __init__(self, remove_stress=False, **kwargs):
         self.remove_stress = remove_stress
         self.get_lexicon_file()
-        super().__init__()
+        super().__init__(**kwargs)
 
     def get_lexicon_file(self):
         self.lexicon_path = os.path.join(data_directory, 'librispeech-lexicon.txt')
@@ -180,8 +180,8 @@ class LibrispeechDictionary(PronunciationDictionary):
 
 class TSVDictionary(PronunciationDictionary):
     def __init__(self, lexicon_path: str, seperator: str='\t', \
-            phone_to_phoneme: Optional[Mapping[str, str]] = None):
-        super().__init__()
+            phone_to_phoneme: Optional[Mapping[str, str]] = None, **kwargs):
+        super().__init__(**kwargs)
         self.lexicon_path = lexicon_path
         self.seperator = seperator
         if phone_to_phoneme is not None:
