@@ -25,7 +25,8 @@ class PronunciationDictionary:
     def __init__(self, use_G2P:bool = True, lang='en', 
             G2P_model_path: str = "en_G2P_model.pt",
             train_G2P:bool = False,
-            train_params = {"n_epochs": 5, "lr": 3e-4, "batch_size":64}):
+            device:str = 'cpu',
+            train_params = {"n_epochs": 5, "lr": 3e-4, "batch_size":64,}):
         self.lexicon: Mapping[str, List[str]] = {}
         self.phonemic_inventory: Set[str] = set([PronunciationDictionary.silence])
         self.graphemic_inventory: Set[str] = set()
@@ -40,13 +41,14 @@ class PronunciationDictionary:
         self.index_mapping: Mapping[int, str] = {v:k for k, v in self.phonemic_mapping.items()}
         self.use_G2P = use_G2P
         if use_G2P:
+            self.device = device
             self.grapheme_pad_idx = len(self.graphemic_inventory) 
             self.grapheme_oov_idx = len(self.graphemic_inventory) + 1
             self.phoneme_pad_idx = len(self.phonemic_inventory)
             self.phoneme_start_idx = len(self.phonemic_inventory) + 1
             self.phoneme_end_idx = len(self.phonemic_inventory) + 2
             self.G2P_model = G2PModel(len(self.graphemic_inventory) + 2, len(self.phonemic_inventory) + 3,
-                    self.grapheme_pad_idx, self.phoneme_pad_idx)
+                    self.grapheme_pad_idx, self.phoneme_pad_idx).to(device)
             if train_G2P:
                 self.train_params = train_params
                 self.cross_loss = torch.nn.NLLLoss(ignore_index=self.phoneme_pad_idx)
@@ -71,9 +73,9 @@ class PronunciationDictionary:
         word_batch_length = max(len(x) for x in word_batch)
         pron_batch_length = max(len(x) for x in pron_batch)
         word_batch = torch.LongTensor([w + [self.grapheme_pad_idx]*(word_batch_length - len(w)) \
-                for w in word_batch]).T
+                for w in word_batch]).T.to(self.device)
         pron_batch = torch.LongTensor([[self.phoneme_start_idx] + p + [self.phoneme_end_idx] + [self.phoneme_pad_idx]*(pron_batch_length - len(p)) \
-                for p in pron_batch]).T
+                for p in pron_batch]).T.to(self.device)
         y = self.G2P_model(word_batch, pron_batch[:-1])
         loss = self.cross_loss(y.transpose(0, 1).transpose(1,2), pron_batch[1:].T)
         loss.backward()
@@ -106,8 +108,8 @@ class PronunciationDictionary:
         torch.save(self.G2P_model.state_dict(), model_path)
 
     def add_G2P_spelling(self, word: str):
-        word = torch.LongTensor([[self.graphemic_mapping[w] for w in word]]).T
-        pronunciation = torch.LongTensor([[self.phoneme_start_idx]]).T
+        word = torch.LongTensor([[self.graphemic_mapping[w] for w in word]]).T.to(self.device)
+        pronunciation = torch.LongTensor([[self.phoneme_start_idx]]).T.to(self.device)
         while pronunciation[-1, 0] != self.phoneme_end_idx:
             y = self.G2P_model(word, pronunciation, inference=True)
             pronunciation = torch.cat((pronunciation, torch.argmax(y[-1, :, :], -1).unsqueeze(0)))
@@ -238,3 +240,5 @@ class AudioFile:
     def move_to_device(self, device:str):
         self.wav = self.wav.to(device)
         self.tensor_transcription = self.tensor_transcription.to(device)
+
+LibrispeechDictionary(train_G2P=True)
