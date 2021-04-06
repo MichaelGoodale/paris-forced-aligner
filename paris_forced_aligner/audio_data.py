@@ -26,7 +26,7 @@ class PronunciationDictionary:
             G2P_model_path: str = "en_G2P_model.pt",
             train_G2P:bool = False,
             device:str = 'cpu',
-            train_params = {"n_epochs": 5, "lr": 3e-4, "batch_size":64,}):
+            train_params = {"n_epochs": 10, "lr": 3e-4, "batch_size":64,}):
         self.lexicon: Mapping[str, List[str]] = {}
         self.phonemic_inventory: Set[str] = set([PronunciationDictionary.silence])
         self.graphemic_inventory: Set[str] = set()
@@ -110,10 +110,27 @@ class PronunciationDictionary:
     def add_G2P_spelling(self, word: str):
         word = torch.LongTensor([[self.graphemic_mapping[w] for w in word]]).T.to(self.device)
         pronunciation = torch.LongTensor([[self.phoneme_start_idx]]).T.to(self.device)
-        while pronunciation[-1, 0] != self.phoneme_end_idx:
-            y = self.G2P_model(word, pronunciation, inference=True)
-            pronunciation = torch.cat((pronunciation, torch.argmax(y[-1, :, :], -1).unsqueeze(0)))
-        print(pronunciation)
+        beams = [(0.0, pronunciation)]
+        i = 0
+        while i < int(len(word)*1.5):
+            new_beams = []
+            for probability, pronunciation in beams:
+                y = self.G2P_model(word, pronunciation)
+                probabilities, indices = torch.topk(y[-1, :, :], 5, dim=-1)
+                for p, idx in zip(probabilities[0], indices[0]):
+                    pronunciation = torch.cat((pronunciation, idx.unsqueeze(0).unsqueeze(0)))
+                    new_beams.append((probability + p, pronunciation))
+            i += 1
+            beams = sorted(new_beams, reverse=True)[:50]
+
+
+        pronunciation = []
+        for phone in beams[0][1][:, 0]:
+            if phone == self.phoneme_start_idx:
+                continue
+            elif phone == self.phoneme_end_idx:
+                break
+            pronunciation.append(self.index_mapping[phone.item()])
 
     def add_words_from_utterance(self, utterance: Utterance):
         for word in utterance.words:
@@ -240,5 +257,3 @@ class AudioFile:
     def move_to_device(self, device:str):
         self.wav = self.wav.to(device)
         self.tensor_transcription = self.tensor_transcription.to(device)
-
-LibrispeechDictionary(train_G2P=True)
