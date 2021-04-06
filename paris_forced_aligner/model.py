@@ -33,7 +33,7 @@ class G2PModel(nn.Module):
         self.grapheme_embedding = nn.Embedding(grapheme_vocab_size, embedding_dim, padding_idx=grapheme_pad)
         self.phoneme_embedding = nn.Embedding(phoneme_vocab_size, embedding_dim, padding_idx=phoneme_pad)
         self.pos_encoding = PositionalEncoding(embedding_dim)
-        self.transformer = nn.Transformer(embedding_dim, nhead=4, num_encoder_layers=4, num_decoder_layers=4, dim_feedforward=256)
+        self.transformer = nn.Transformer(embedding_dim, nhead=4, num_encoder_layers=4, num_decoder_layers=4, dim_feedforward=512)
         self.fc = nn.Linear(embedding_dim, phoneme_vocab_size)
 
     def forward(self, src, tgt, device='cpu'):
