@@ -76,7 +76,7 @@ class PronunciationDictionary:
                 for w in word_batch]).T.to(self.device)
         pron_batch = torch.LongTensor([[self.phoneme_start_idx] + p + [self.phoneme_end_idx] + [self.phoneme_pad_idx]*(pron_batch_length - len(p)) \
                 for p in pron_batch]).T.to(self.device)
-        y = self.G2P_model(word_batch, pron_batch[:-1])
+        y = self.G2P_model(word_batch, pron_batch[:-1], device=self.device)
         loss = self.cross_loss(y.transpose(0, 1).transpose(1,2), pron_batch[1:].T)
         loss.backward()
         self.optimizer.step()
@@ -122,7 +122,6 @@ class PronunciationDictionary:
                     new_beams.append((probability + p, pronunciation))
             i += 1
             beams = sorted(new_beams, reverse=True)[:50]
-
 
         pronunciation = []
         for phone in beams[0][1][:, 0]:

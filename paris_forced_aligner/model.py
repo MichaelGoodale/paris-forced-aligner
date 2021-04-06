@@ -36,10 +36,10 @@ class G2PModel(nn.Module):
         self.transformer = nn.Transformer(embedding_dim, nhead=4, num_encoder_layers=4, num_decoder_layers=4, dim_feedforward=256)
         self.fc = nn.Linear(embedding_dim, phoneme_vocab_size)
 
-    def forward(self, src, tgt, inference=False):
+    def forward(self, src, tgt, device='cpu'):
         src = self.pos_encoding(self.grapheme_embedding(src) * math.sqrt(self.embedding_dim))
         tgt = self.pos_encoding(self.phoneme_embedding(tgt) * math.sqrt(self.embedding_dim))
-        mask = self.transformer.generate_square_subsequent_mask(tgt.shape[0])
+        mask = self.transformer.generate_square_subsequent_mask(tgt.shape[0]).to(device)
         x = self.transformer(src, tgt, tgt_mask=mask)
         x = self.fc(x)
         return F.log_softmax(x, dim=-1)
