@@ -27,6 +27,7 @@ class PronunciationDictionary:
             train_G2P:bool = False,
             device:str = 'cpu',
             train_params = {"n_epochs": 10, "lr": 3e-4, "batch_size":64,}):
+
         self.lexicon: Mapping[str, List[str]] = {}
         self.phonemic_inventory: Set[str] = set([PronunciationDictionary.silence])
         self.graphemic_inventory: Set[str] = set()
@@ -51,11 +52,11 @@ class PronunciationDictionary:
                     self.grapheme_pad_idx, self.phoneme_pad_idx).to(device)
             if train_G2P:
                 self.train_params = train_params
-                self.cross_loss = torch.nn.NLLLoss(ignore_index=self.phoneme_pad_idx)
+                self.cross_loss = torch.nn.NLLLoss()
                 self.optimizer = torch.optim.Adam(self.G2P_model.parameters(), lr=0.0003)
                 self.train_G2P_model(G2P_model_path)
             else:
-                self.G2P_model.load_state_dict(torch.load(G2P_model_path))
+                self.G2P_model.load_state_dict(torch.load(G2P_model_path, map_location=self.device))
 
         self.lang = lang
 
@@ -130,6 +131,7 @@ class PronunciationDictionary:
             elif phone == self.phoneme_end_idx:
                 break
             pronunciation.append(self.index_mapping[phone.item()])
+        self.lexicon[word] = pronunciation
 
     def add_words_from_utterance(self, utterance: Utterance):
         for word in utterance.words:
