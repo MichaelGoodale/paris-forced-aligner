@@ -132,7 +132,7 @@ class PronunciationDictionary:
         return avg_per, avg_wer
 
 
-    def train_G2P_model(self, model_path, train_test_split=0.99):
+    def train_G2P_model(self, model_path, train_test_split=0.98):
         n_epochs = self.train_params['n_epochs']
         batch_size = self.train_params['batch_size']
         epoch = 0
@@ -157,7 +157,7 @@ class PronunciationDictionary:
 
             if len(word_batch) > 0:
                 loss = self.teach_model(word_batch, pron_batch)
-                loss.append(loss)
+                losses.append(loss)
             per, wer = self.get_G2P_accuracy(test_words, batch_size)
             print(f"Average Loss={sum(losses)/len(losses):.4f}, PER {per:.4f}, WER {wer:.4f}")
             epoch += 1
