@@ -8,7 +8,12 @@ import torchaudio
 
 from torchaudio.transforms import Resample
 from torch import Tensor
+
 from num2words import num2words
+
+from jiwer import wer 
+
+from tqdm import tqdm
 
 from paris_forced_aligner.utils import data_directory, download_data_file
 from paris_forced_aligner.ipa_data import arpabet_to_ipa
@@ -43,12 +48,14 @@ class PronunciationDictionary:
         self.use_G2P = use_G2P
         if use_G2P:
             self.device = device
-            self.grapheme_pad_idx = len(self.graphemic_inventory) 
+            self.grapheme_pad_idx = len(self.graphemic_inventory)
             self.grapheme_oov_idx = len(self.graphemic_inventory) + 1
-            self.phoneme_pad_idx = len(self.phonemic_inventory)
-            self.phoneme_start_idx = len(self.phonemic_inventory) + 1
-            self.phoneme_end_idx = len(self.phonemic_inventory) + 2
-            self.G2P_model = G2PModel(len(self.graphemic_inventory) + 2, len(self.phonemic_inventory) + 3,
+            self.grapheme_end_idx = len(self.phonemic_inventory) + 2
+
+            self.phoneme_pad_idx = 0 #Use <SIL> as PAD
+            self.phoneme_start_idx = len(self.phonemic_inventory)
+            self.phoneme_end_idx = len(self.phonemic_inventory) + 1
+            self.G2P_model = G2PModel(len(self.graphemic_inventory) + 2, len(self.phonemic_inventory) + 2,
                     self.grapheme_pad_idx, self.phoneme_pad_idx).to(device)
             if train_G2P:
                 self.train_params = train_params
@@ -70,13 +77,17 @@ class PronunciationDictionary:
     def index_to_phone(self, idx: int) -> str:
         return self.index_mapping[idx]
 
-    def teach_model(self, word_batch, pron_batch):
+    def prepare_batches(self, word_batch, pron_batch):
         word_batch_length = max(len(x) for x in word_batch)
         pron_batch_length = max(len(x) for x in pron_batch)
         word_batch = torch.LongTensor([w + [self.grapheme_pad_idx]*(word_batch_length - len(w)) \
                 for w in word_batch]).T.to(self.device)
         pron_batch = torch.LongTensor([[self.phoneme_start_idx] + p + [self.phoneme_end_idx] + [self.phoneme_pad_idx]*(pron_batch_length - len(p)) \
                 for p in pron_batch]).T.to(self.device)
+        return word_batch, pron_batch
+
+    def teach_model(self, word_batch, pron_batch):
+        word_batch, pron_batch = self.prepare_batches(word_batch, pron_batch)
         y = self.G2P_model(word_batch, pron_batch[:-1], device=self.device)
         loss = self.cross_loss(y.transpose(0, 1).transpose(1,2), pron_batch[1:].T)
         loss.backward()
@@ -84,43 +95,87 @@ class PronunciationDictionary:
         self.optimizer.zero_grad()
         return loss.item()
 
-    def train_G2P_model(self, model_path):
+    def get_G2P_accuracy(self, words, batch_size):
+        real_word_batch = []
+        word_batch = []
+        pron_batch = []
+        #Extremely confusing terminology G2P transformer paper where phoneme error rate is WER on phonemes whereas "WER" is just percentage of incorrect words
+        avg_per = 0
+        avg_wer = 0
+        n = 0 
+        for i, word in enumerate(words):
+            if i % batch_size == 0 and i > 0:
+                word_batch, pron_batch = self.prepare_batches(word_batch, pron_batch)
+                max_pron_len = int(pron_batch.shape[0] * 1.2)
+                pron_batch = torch.LongTensor([[self.phoneme_start_idx]*word_batch.shape[1]])
+                for _ in range(max_pron_len):
+                    y = self.G2P_model(word_batch, pron_batch, device=self.device)
+                    pron_batch = torch.cat((pron_batch, torch.argmax(y[-1, :, :], dim=-1).unsqueeze(0)), dim=0)
+
+                for i, word in enumerate(real_word_batch):
+                    real_pronunciation = self.lexicon[word]
+                    pronunciation = []
+                    for x in pron_batch[1:, i]:
+                        x = x.item()
+                        if x not in self.index_mapping or x == self.phoneme_pad_idx:
+                            break #Since pad_idx is <SIL> it will be in index_mapping
+                        pronunciation.append(self.index_mapping[x])
+                    avg_per += (wer(real_pronunciation, pronunciation) - avg_per) / (n+1)
+                    avg_wer += (int(real_pronunciation == pronunciation) - avg_wer) / (n+1)
+                    n += 1
+                real_word_batch = []
+                word_batch = []
+                pron_batch = []
+            real_word_batch.append(word)
+            word_batch.append([self.graphemic_mapping[g] for g in word])
+            pron_batch.append([self.phonemic_mapping[p] for p in self.lexicon[word]])
+        return avg_per, avg_wer
+
+
+    def train_G2P_model(self, model_path, train_test_split=0.99):
         n_epochs = self.train_params['n_epochs']
         batch_size = self.train_params['batch_size']
         epoch = 0
         words = list(self.lexicon.keys())
         random.Random(1337).shuffle(words)
 
+        test_words = words[int(len(words)*train_test_split):]
+        train_words = words[:int(len(words)*train_test_split)]
+
         while epoch < n_epochs:
             word_batch = []
             pron_batch = []
-            for i, word in enumerate(words):
+            losses = []
+            for i, word in enumerate(tqdm(train_words, desc=f"Epoch {epoch+1}/{n_epochs}")):
                 word_batch.append([self.graphemic_mapping[g] for g in word])
                 pron_batch.append([self.phonemic_mapping[p] for p in self.lexicon[word]])
                 if i % batch_size == 0:
                     loss = self.teach_model(word_batch, pron_batch)
                     word_batch = []
                     pron_batch = []
-                    if (i // batch_size) % 10 == 0:
-                        print(f"Loss {loss}, Epoch {epoch+1} / {n_epochs}, Step {i}")
-            epoch += 1
+                    losses.append(loss)
+
             if len(word_batch) > 0:
-                self.teach_model(word_batch, pron_batch)
+                loss = self.teach_model(word_batch, pron_batch)
+                loss.append(loss)
+            per, wer = self.get_G2P_accuracy(test_words, batch_size)
+            print(f"Average Loss={sum(losses)/len(losses):.4f}, PER {per:.4f}, WER {wer:.4f}")
+            epoch += 1
         torch.save(self.G2P_model.state_dict(), model_path)
 
     def add_G2P_spelling(self, word: str):
-        word = torch.LongTensor([[self.graphemic_mapping[w] for w in word]]).T.to(self.device)
+        word = torch.LongTensor([[self.graphemic_mapping[w] for w in word] + [self.grapheme_pad_idx]]).T.to(self.device)
         pronunciation = torch.LongTensor([[self.phoneme_start_idx]]).T.to(self.device)
-        beams = [(0.0, pronunciation)]
+        beams = [(0.0, pronunciation.clone())]
         i = 0
-        while i < int(len(word)*1.5):
+        while i < int(len(word)*2):
             new_beams = []
             for probability, pronunciation in beams:
                 y = self.G2P_model(word, pronunciation)
                 probabilities, indices = torch.topk(y[-1, :, :], 5, dim=-1)
                 for p, idx in zip(probabilities[0], indices[0]):
                     pronunciation = torch.cat((pronunciation, idx.unsqueeze(0).unsqueeze(0)))
-                    new_beams.append((probability + p, pronunciation))
+                    new_beams.append((probability + p, pronunciation.clone()))
             i += 1
             beams = sorted(new_beams, reverse=True)[:50]
 
