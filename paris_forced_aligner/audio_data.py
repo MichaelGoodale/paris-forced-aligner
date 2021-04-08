@@ -107,7 +107,7 @@ class PronunciationDictionary:
             if i % batch_size == 0 and i > 0:
                 word_batch, pron_batch = self.prepare_batches(word_batch, pron_batch)
                 max_pron_len = int(pron_batch.shape[0] * 1.2)
-                pron_batch = torch.LongTensor([[self.phoneme_start_idx]*word_batch.shape[1]])
+                pron_batch = torch.LongTensor([[self.phoneme_start_idx]*word_batch.shape[1]]).to(self.device)
                 for _ in range(max_pron_len):
                     y = self.G2P_model(word_batch, pron_batch, device=self.device)
                     pron_batch = torch.cat((pron_batch, torch.argmax(y[-1, :, :], dim=-1).unsqueeze(0)), dim=0)
