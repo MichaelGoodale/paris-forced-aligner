@@ -160,7 +160,7 @@ class Trainer:
                     if step % self.output_model_every == 0:
                         self.save_checkpoint(step)
 
-                if step % 1000 == 0:
+                if step % 20 == 0:
                     mean_loss = sum(losses)/len(losses)
                     print(f"After {step} steps, the mean loss is {mean_loss:.4f}")
 
