@@ -133,12 +133,27 @@ class PronunciationDictionary:
                     avg_per += (wer(real_pronunciation, pronunciation) - avg_per) / (n+1)
                     avg_wer += (int(real_pronunciation != pronunciation) - avg_wer) / (n+1)
                     n += 1
+
                 real_word_batch = []
                 word_batch = []
                 pron_batch = []
+
             real_word_batch.append(word)
             word_batch.append([self.graphemic_mapping[g] for g in word])
             pron_batch.append([self.phonemic_mapping[p] for p in self.lexicon[word]])
+
+        if real_word_batch != []:
+            for i, word in enumerate(real_word_batch):
+                real_pronunciation = self.lexicon[word]
+                pronunciation = []
+                for x in pron_batch[1:, i]:
+                    x = x.item()
+                    if x not in self.index_mapping or x == self.phoneme_pad_idx:
+                        break #Since pad_idx is <SIL> it will be in index_mapping
+                    pronunciation.append(self.index_mapping[x])
+                avg_per += (wer(real_pronunciation, pronunciation) - avg_per) / (n+1)
+                avg_wer += (int(real_pronunciation != pronunciation) - avg_wer) / (n+1)
+                n += 1
         return avg_per, avg_wer
 
 
