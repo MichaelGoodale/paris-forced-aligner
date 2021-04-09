@@ -169,7 +169,7 @@ class PronunciationDictionary:
                             "loss": sum(losses)/len(losses),
                             "per": per,
                             "wer": wer,
-                            "epoch": epoch})
+                            "epoch": epoch},
                         model_path)
 
         torch.save({"model_state_dict": self.G2P_model.state_dict(),
@@ -177,7 +177,7 @@ class PronunciationDictionary:
                     "loss": sum(losses)/len(losses),
                     "per": per,
                     "wer": wer,
-                    "epoch": epoch})
+                    "epoch": epoch},
                 model_path)
 
     def add_G2P_spelling(self, word: str):
