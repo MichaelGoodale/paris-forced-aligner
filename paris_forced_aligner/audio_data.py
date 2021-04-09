@@ -30,6 +30,7 @@ class PronunciationDictionary:
     def __init__(self, use_G2P:bool = True, lang='en', 
             G2P_model_path: str = "en_G2P_model.pt",
             train_G2P:bool = False,
+            continue_training=False,
             device:str = 'cpu',
             train_params = {"n_epochs": 10, "lr": 3e-4, "batch_size":64,}):
 
@@ -46,6 +47,7 @@ class PronunciationDictionary:
 
         self.index_mapping: Mapping[int, str] = {v:k for k, v in self.phonemic_mapping.items()}
         self.use_G2P = use_G2P
+
         if use_G2P:
             self.device = device
             self.grapheme_pad_idx = len(self.graphemic_inventory)
@@ -60,8 +62,15 @@ class PronunciationDictionary:
             if train_G2P:
                 self.train_params = train_params
                 self.cross_loss = torch.nn.NLLLoss()
-                self.optimizer = torch.optim.Adam(self.G2P_model.parameters(), lr=0.0003)
-                self.train_G2P_model(G2P_model_path)
+                self.optimizer = torch.optim.Adam(self.G2P_model.parameters(), lr=train_params["lr"])
+                starting_epoch = 0
+                if continue_training:
+                    checkpoint = torch.load(G2P_model_path, map_location=self.device)
+                    self.G2P_model.load_state_dict(checkpoint["model_state_dict"])
+                    self.optimizer.load_state_dict(checkpoint["optimizer"])
+                    starting_epoch = checkpoint["epoch"]
+                    self.train_params = checkpoint["train_params"]
+                self.train_G2P_model(G2P_model_path, starting_epoch=starting_epoch)
             else:
                 self.G2P_model.load_state_dict(torch.load(G2P_model_path, map_location=self.device))
 
@@ -132,10 +141,10 @@ class PronunciationDictionary:
         return avg_per, avg_wer
 
 
-    def train_G2P_model(self, model_path, train_test_split=0.98, output_model_every=20):
+    def train_G2P_model(self, model_path, train_test_split=0.98, output_model_every=20, starting_epoch=0):
         n_epochs = self.train_params['n_epochs']
         batch_size = self.train_params['batch_size']
-        epoch = 0
+        epoch = starting_epoch
         words = list(self.lexicon.keys())
         random.Random(1337).shuffle(words)
 
@@ -169,7 +178,8 @@ class PronunciationDictionary:
                             "loss": sum(losses)/len(losses),
                             "per": per,
                             "wer": wer,
-                            "epoch": epoch},
+                            "epoch": epoch,
+                            "train_params": self.train_params},
                         model_path)
 
         torch.save({"model_state_dict": self.G2P_model.state_dict(),
@@ -177,7 +187,8 @@ class PronunciationDictionary:
                     "loss": sum(losses)/len(losses),
                     "per": per,
                     "wer": wer,
-                    "epoch": epoch},
+                    "epoch": epoch,
+                    "train_params": self.train_params},
                 model_path)
 
     def add_G2P_spelling(self, word: str):
