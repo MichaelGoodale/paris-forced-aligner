@@ -27,7 +27,7 @@ class PronunciationDictionary:
     silence = "<SIL>"
     OOV = "<OOV>"
 
-    def __init__(self, use_G2P:bool = True, lang='en', 
+    def __init__(self, use_G2P:bool = False, lang='en', 
             G2P_model_path: str = "en_G2P_model.pt",
             train_G2P:bool = False,
             continue_training=False,

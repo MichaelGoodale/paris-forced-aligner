@@ -11,6 +11,7 @@ from itertools import chain
 from torch.multiprocessing import Pool, cpu_count
 import buckeye
 import youtube_dl
+from tqdm.autonotebook import tqdm
 import webvtt
 import torchaudio
 import tempfile
@@ -30,6 +31,9 @@ class CorpusClass():
 
     def __iter__(self):
         return iter(self.extract_files(self.return_gold_labels))
+
+    def __len__(self):
+        raise NotImplementedError("CorpusClass has no __len__ implemented by default")
 
 class YoutubeCorpus(CorpusClass):
 
@@ -145,12 +149,36 @@ class LibrispeechCorpus(CorpusClass):
             raise IOError(f"{self.corpus_path} has no files!")
 
 class TIMITCorpus(CorpusClass):
-    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False, split: str = "train", untranscribed_audio=True):
+
+    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False, split: str = "train", val_split=0.95, untranscribed_audio=True):
         super().__init__(corpus_path, pronunciation_dictionary, return_gold_labels)
-        if split not in ["train", "test", "both"]:
-            raise NotImplementedError("TIMIT has only a test and train split, please set `split` in ['train', 'test', 'both']")
+        if split not in ["train", "test", "val", "both"]:
+            raise NotImplementedError("TIMIT has only a test, train and val split, please set `split` in ['train', 'test', 'val' 'both']")
         self.split = split
         self.untranscribed_audio = untranscribed_audio
+
+        corpus_paths = [os.path.join(self.corpus_path, x) for x in ["train", "test"]]
+        if self.split == "train":
+            corpus_paths = [corpus_paths[0]]
+        elif self.split == 'test':
+            corpus_paths = [corpus_paths[1]]
+        elif self.split == 'val':
+            corpus_paths = [corpus_paths[1]]
+
+        self.all_files = []
+        for (d, s_d, files) in chain(*[os.walk(x) for x in corpus_paths]):
+            for f in filter(lambda x: x.endswith('.wav'), files):
+                wav_f = os.path.join(d, f)
+                phn_f = wav_f.replace('.wav', '.phn')
+                word_f = wav_f.replace('.wav', '.wrd')
+                self.all_files.append((wav_f, phn_f, word_f))
+
+        if self.split in ['val', 'train']:
+            random.Random(1337).shuffle(self.all_files)
+            if self.split == 'val':
+                self.all_files = self.all_files[int(val_split*len(self.all_files)):]
+            else:
+                self.all_files = self.all_files[:int(val_split*len(self.all_files))]
 
     def get_utterance(self, phn_f, word_f):
         word_timing = []
@@ -186,34 +214,25 @@ class TIMITCorpus(CorpusClass):
                         word[-1].end = end
                     else:
                         word.append(Phone(label, start, end))
-
         return Utterance(data)
 
     def extract_files(self, return_gold_labels):
-        corpus_paths = [os.path.join(self.corpus_path, x) for x in ["train", "test"]]
-        if self.split == "train":
-            corpus_paths = [corpus_paths[0]]
-        elif self.split == 'test':
-            corpus_paths = [corpus_paths[1]]
+        for wav_f, phn_f, word_f in self.all_files:
+            utterance = self.get_utterance(phn_f, word_f)
+            if self.untranscribed_audio:
+                transcription = ""
+            else:
+                transcription = utterance.transcription
 
-        for (d, s_d, files) in chain(*[os.walk(x) for x in corpus_paths]):
-            for f in filter(lambda x: x.endswith('.wav'), files):
-                wav_f = os.path.join(d, f)
-                phn_f = wav_f.replace('.wav', '.phn')
-                word_f = wav_f.replace('.wav', '.wrd')
+            audio = AudioFile(wav_f, transcription, self.pronunciation_dictionary)
 
-                utterance = self.get_utterance(phn_f, word_f)
-                if self.untranscribed_audio:
-                    transcription = ""
-                else:
-                    transcription = utterance.transcription
+            if return_gold_labels:
+                yield audio, utterance
+            else:
+                yield audio
 
-                audio = AudioFile(wav_f, transcription, self.pronunciation_dictionary)
-
-                if return_gold_labels:
-                    yield audio, utterance
-                else:
-                    yield audio
+    def __len__(self):
+        return len(self.all_files)
 
 class BuckeyeCorpus(CorpusClass):
     def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False, relabel: bool = False):
@@ -288,7 +307,6 @@ class BuckeyeCorpus(CorpusClass):
                                                     p.label = lexical_phone
                                             for base in utterance.base_units:
                                                 if base.label not in self.pronunciation_dictionary.phonemic_inventory:
-                                                    print("skip")
                                                     continue
 
                                         yield audio, utterance
