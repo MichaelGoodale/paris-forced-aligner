@@ -13,7 +13,7 @@ from num2words import num2words
 
 from jiwer import wer 
 
-from tqdm import tqdm
+from tqdm.autonotebook import tqdm
 
 from paris_forced_aligner.utils import data_directory, download_data_file
 from paris_forced_aligner.ipa_data import arpabet_to_ipa
@@ -121,7 +121,7 @@ class PronunciationDictionary:
                             break #Since pad_idx is <SIL> it will be in index_mapping
                         pronunciation.append(self.index_mapping[x])
                     avg_per += (wer(real_pronunciation, pronunciation) - avg_per) / (n+1)
-                    avg_wer += (int(real_pronunciation == pronunciation) - avg_wer) / (n+1)
+                    avg_wer += (int(real_pronunciation != pronunciation) - avg_wer) / (n+1)
                     n += 1
                 real_word_batch = []
                 word_batch = []
@@ -132,7 +132,7 @@ class PronunciationDictionary:
         return avg_per, avg_wer
 
 
-    def train_G2P_model(self, model_path, train_test_split=0.98):
+    def train_G2P_model(self, model_path, train_test_split=0.98, output_model_every=20):
         n_epochs = self.train_params['n_epochs']
         batch_size = self.train_params['batch_size']
         epoch = 0
@@ -158,10 +158,27 @@ class PronunciationDictionary:
             if len(word_batch) > 0:
                 loss = self.teach_model(word_batch, pron_batch)
                 losses.append(loss)
+
             per, wer = self.get_G2P_accuracy(test_words, batch_size)
             print(f"Average Loss={sum(losses)/len(losses):.4f}, PER {per:.4f}, WER {wer:.4f}")
+
             epoch += 1
-        torch.save(self.G2P_model.state_dict(), model_path)
+            if epoch % output_model_every == 0:
+                torch.save({"model_state_dict": self.G2P_model.state_dict(),
+                            "optimizer": self.optimizer.state_dict(),
+                            "loss": sum(losses)/len(losses),
+                            "per": per,
+                            "wer": wer,
+                            "epoch": epoch})
+                        model_path)
+
+        torch.save({"model_state_dict": self.G2P_model.state_dict(),
+                    "optimizer": self.optimizer.state_dict(),
+                    "loss": sum(losses)/len(losses),
+                    "per": per,
+                    "wer": wer,
+                    "epoch": epoch})
+                model_path)
 
     def add_G2P_spelling(self, word: str):
         word = torch.LongTensor([[self.graphemic_mapping[w] for w in word] + [self.grapheme_pad_idx]]).T.to(self.device)
