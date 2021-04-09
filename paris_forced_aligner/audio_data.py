@@ -113,36 +113,14 @@ class PronunciationDictionary:
         avg_per = 0
         avg_wer = 0
         n = 0 
-        for i, word in enumerate(words):
-            if i % batch_size == 0 and i > 0:
-                word_batch, pron_batch = self.prepare_batches(word_batch, pron_batch)
-                max_pron_len = int(pron_batch.shape[0] * 1.2)
-                pron_batch = torch.LongTensor([[self.phoneme_start_idx]*word_batch.shape[1]]).to(self.device)
-                for _ in range(max_pron_len):
-                    y = self.G2P_model(word_batch, pron_batch, device=self.device)
-                    pron_batch = torch.cat((pron_batch, torch.argmax(y[-1, :, :], dim=-1).unsqueeze(0)), dim=0)
+        def run_batch(real_word_batch, word_batch, pron_batch, avg_per, avg_wer, n):
+            word_batch, pron_batch = self.prepare_batches(word_batch, pron_batch)
+            max_pron_len = int(pron_batch.shape[0] * 1.2)
+            pron_batch = torch.LongTensor([[self.phoneme_start_idx]*word_batch.shape[1]]).to(self.device)
+            for _ in range(max_pron_len):
+                y = self.G2P_model(word_batch, pron_batch, device=self.device)
+                pron_batch = torch.cat((pron_batch, torch.argmax(y[-1, :, :], dim=-1).unsqueeze(0)), dim=0)
 
-                for i, word in enumerate(real_word_batch):
-                    real_pronunciation = self.lexicon[word]
-                    pronunciation = []
-                    for x in pron_batch[1:, i]:
-                        x = x.item()
-                        if x not in self.index_mapping or x == self.phoneme_pad_idx:
-                            break #Since pad_idx is <SIL> it will be in index_mapping
-                        pronunciation.append(self.index_mapping[x])
-                    avg_per += (wer(real_pronunciation, pronunciation) - avg_per) / (n+1)
-                    avg_wer += (int(real_pronunciation != pronunciation) - avg_wer) / (n+1)
-                    n += 1
-
-                real_word_batch = []
-                word_batch = []
-                pron_batch = []
-
-            real_word_batch.append(word)
-            word_batch.append([self.graphemic_mapping[g] for g in word])
-            pron_batch.append([self.phonemic_mapping[p] for p in self.lexicon[word]])
-
-        if real_word_batch != []:
             for i, word in enumerate(real_word_batch):
                 real_pronunciation = self.lexicon[word]
                 pronunciation = []
@@ -154,6 +132,21 @@ class PronunciationDictionary:
                 avg_per += (wer(real_pronunciation, pronunciation) - avg_per) / (n+1)
                 avg_wer += (int(real_pronunciation != pronunciation) - avg_wer) / (n+1)
                 n += 1
+            return avg_per, avg_wer, n
+
+        for i, word in enumerate(words):
+            if i % batch_size == 0 and i > 0:
+                avg_per, avg_wer, n = run_batch(real_word_batch, word_batch, pron_batch, avg_per, avg_wer, n)
+                real_word_batch = []
+                word_batch = []
+                pron_batch = []
+
+            real_word_batch.append(word)
+            word_batch.append([self.graphemic_mapping[g] for g in word])
+            pron_batch.append([self.phonemic_mapping[p] for p in self.lexicon[word]])
+
+        if real_word_batch != []:
+            avg_per, avg_wer, n = run_batch(real_word_batch, word_batch, pron_batch, avg_per, avg_wer, n)
         return avg_per, avg_wer
 
 
