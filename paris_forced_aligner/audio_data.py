@@ -73,6 +73,7 @@ class PronunciationDictionary:
                 self.train_G2P_model(G2P_model_path, starting_epoch=starting_epoch)
             else:
                 self.G2P_model.load_state_dict(torch.load(G2P_model_path, map_location=self.device))
+                self.G2P_model.eval()
 
         self.lang = lang
 
@@ -168,7 +169,8 @@ class PronunciationDictionary:
                 loss = self.teach_model(word_batch, pron_batch)
                 losses.append(loss)
 
-            per, wer = self.get_G2P_accuracy(test_words, batch_size)
+            with torch.no_grad():
+                per, wer = self.get_G2P_accuracy(test_words, batch_size)
             print(f"Average Loss={sum(losses)/len(losses):.4f}, PER {per:.4f}, WER {wer:.4f}")
 
             epoch += 1
