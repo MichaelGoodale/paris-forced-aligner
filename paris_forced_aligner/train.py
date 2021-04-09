@@ -157,10 +157,12 @@ class Trainer:
                     self.optimizer.zero_grad()
                     accumulate_step = 0
                     step += 1
-                    print(sum(losses)/len(losses))
-
                     if step % self.output_model_every == 0:
                         self.save_checkpoint(step)
+
+                if step % 1000 == 0:
+                    mean_loss = sum(losses)/len(losses)
+                    print(f"After {step} steps, the mean loss is {mean_loss:.4f}")
 
                 if step >= self.total_steps: 
                     break
