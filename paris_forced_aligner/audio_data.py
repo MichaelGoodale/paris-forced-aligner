@@ -72,7 +72,7 @@ class PronunciationDictionary:
                     self.train_params = checkpoint["train_params"]
                 self.train_G2P_model(G2P_model_path, starting_epoch=starting_epoch)
             else:
-                self.G2P_model.load_state_dict(torch.load(G2P_model_path, map_location=self.device))
+                self.G2P_model.load_state_dict(torch.load(G2P_model_path, map_location=self.device)['model_state_dict'])
                 self.G2P_model.eval()
 
         self.lang = lang
