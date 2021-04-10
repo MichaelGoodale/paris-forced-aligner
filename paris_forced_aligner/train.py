@@ -169,12 +169,12 @@ class Trainer:
 
                     if step % self.output_model_every == 0:
                         self.save_checkpoint(step)
-                    self.update_progress_bar(f"Epoch {self.epoch+1}", {"Previous loss": sum(losses[-self.accumulate_steps:])/len(losses[-self.accumulate_steps:])})
+                    self.update_progress_bar(f"Epoch {self.epoch+1}", {"Previous loss": sum(losses[-self.accumulate_steps:])/len(losses[-self.accumulate_steps:]), "Step": step})
 
                 if step >= self.total_steps: 
                     break
             self.epoch += 1
-            print(f"Epoch: {epoch} Step: {step}/{self.total_steps}, the mean loss is {sum(losses)/len(losses):.4f}")
+            print(f"Epoch: {self.epoch} Step: {step}/{self.total_steps}, the mean loss is {sum(losses)/len(losses):.4f}")
             losses = []
 
         self.save_checkpoint(step)
