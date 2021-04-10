@@ -1,12 +1,14 @@
 import os
 import time
 
-from paris_forced_aligner.corpus import LibrispeechCorpus, CorpusClass
-from paris_forced_aligner.model import PhonemeDetector, AlignmentPretrainingModel
+from tqdm.autonotebook import tqdm
 
 import torch
 from torch.nn import CTCLoss, CrossEntropyLoss
 import torch.nn.functional as F
+
+from paris_forced_aligner.corpus import LibrispeechCorpus, CorpusClass
+from paris_forced_aligner.model import PhonemeDetector, AlignmentPretrainingModel
 
 class Trainer:
 
@@ -70,7 +72,7 @@ class Trainer:
     def prepare_ctc_batch(self, batch):
         input_wavs, padding_mask = self.prepare_audio_batch(batch)
         transcription_lengths = torch.tensor([a.tensor_transcription.shape[0] for a in batch])
-        transcriptions = torch.zeros((self.batch_size, transcription_lengths.max()))
+        transcriptions = torch.zeros((len(batch), transcription_lengths.max()))
         for i, (length, a) in enumerate(zip(transcription_lengths, batch)):
             transcriptions[i, :length] = a.tensor_transcription
         transcriptions = transcriptions.to(self.device)
@@ -79,9 +81,10 @@ class Trainer:
 
     def batched_audio_files(self):
         batch = []
+        self.corpus_iterator = tqdm(self.corpus)
         if self.corpus.return_gold_labels:
             utt_batch = []
-            for audio_file, utterance in self.corpus:
+            for audio_file, utterance in self.corpus_iterator:
                 if audio_file.wav.shape[1] < self.memory_max_length:
                     batch.append(audio_file)
                     utt_batch.append(utterance)
@@ -98,7 +101,7 @@ class Trainer:
                 utt_batch = []
                 batch = []
         else:
-            for audio_file in self.corpus:
+            for audio_file in self.corpus_iterator:
                 if audio_file.wav.shape[1] < self.memory_max_length:
                     batch.append(audio_file)
 
@@ -128,17 +131,23 @@ class Trainer:
         # CTC Loss 
         return self.loss_fn(X, transcriptions, X_lengths, transcription_lengths) / self.accumulate_steps
 
+    def update_progress_bar(self, prefix_string, postfix_stats):
+        '''Adds string to current progress bar, and allow it to fail'''
+        self.corpus_iterator.set_description(prefix_string)
+        self.corpus_iterator.set_postfix(postfix_stats)
+
     def save_checkpoint(self, step):
         torch.save({
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
-            'step': step
+            'step': step,
+            'epoch': epoch
            },
         f"{self.output_directory}/{step}_model.pt")
 
     def train(self):
         step = 0
-
+        self.epoch = 0
         while step < self.total_steps:
             accumulate_step = 0
             losses = []
@@ -157,15 +166,16 @@ class Trainer:
                     self.optimizer.zero_grad()
                     accumulate_step = 0
                     step += 1
+
                     if step % self.output_model_every == 0:
                         self.save_checkpoint(step)
-
-                if step % 20 == 0:
-                    mean_loss = sum(losses)/len(losses)
-                    print(f"After {step} steps, the mean loss is {mean_loss:.4f}")
+                    self.update_progress_bar(f"Epoch {self.epoch+1}", {"Previous loss": sum(losses[-self.accumulate_steps:])/len(losses[-self.accumulate_steps:])})
 
                 if step >= self.total_steps: 
                     break
+            self.epoch += 1
+            print(f"Epoch: {epoch} Step: {step}/{self.total_steps}, the mean loss is {sum(losses)/len(losses):.4f}")
+            losses = []
 
         self.save_checkpoint(step)
 

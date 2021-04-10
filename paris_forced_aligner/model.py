@@ -47,7 +47,7 @@ class G2PModel(nn.Module):
 class Upscaler(nn.Module):
     def __init__(self, input_dim, internal_dim):
         super().__init__()
-        self.time_transform = nn.Upsample(scale_factor=2, mode='linear')
+        self.time_transform = nn.Upsample(scale_factor=2, mode='linear', align_corners=False)
         self.conv1 = nn.Conv1d(input_dim, internal_dim, 4)
         self.batch_norm1 = nn.InstanceNorm1d(internal_dim)
         self.conv2 = nn.Conv1d(internal_dim, internal_dim, 2)
