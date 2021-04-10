@@ -45,7 +45,7 @@ class Trainer:
 
         self.loss_fn = CTCLoss()
         self.optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-        self.memory_max_length = 260000
+        self.memory_max_length = 300000
 
     def freeze(self):
         self.frozen = True
