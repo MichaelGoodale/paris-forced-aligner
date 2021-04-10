@@ -141,7 +141,7 @@ class Trainer:
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
             'step': step,
-            'epoch': epoch
+            'epoch': self.epoch
            },
         f"{self.output_directory}/{step}_model.pt")
 
