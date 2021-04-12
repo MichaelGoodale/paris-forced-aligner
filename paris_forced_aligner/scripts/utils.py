@@ -6,7 +6,7 @@ import torch
 
 from paris_forced_aligner.audio_data import PronunciationDictionary, TSVDictionary, LibrispeechDictionary
 from paris_forced_aligner.utils import data_directory, download_data_file
-from paris_forced_aligner.model import PhonemeDetector, AlignmentPretrainingModel
+from paris_forced_aligner.model import PhonemeDetector
 
 wav2vec_names = {
         'small': "facebook/wav2vec2-base",
@@ -43,7 +43,7 @@ def process_model_args(parser: argparse.ArgumentParser, args: argparse.Namespace
         wav2vec_model_name = wav2vec_names[args.wav2vec_model]
 
     if pretraining:
-        model = AlignmentPretrainingModel(wav2vec_model_name, vocab_size, args.internal_vector_dim)
+        model = PhonemeDetector(wav2vec_model_name, 4, args.internal_vector_dim)
     else:
         model = PhonemeDetector(wav2vec_model_name, vocab_size, args.internal_vector_dim)
 

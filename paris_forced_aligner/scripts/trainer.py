@@ -16,6 +16,7 @@ def train_model():
     parser.add_argument("--corpus_path", type=str, required=True)
     parser.add_argument("--corpus_type", default="librispeech", choices=['librispeech', 'youtube', 'buckeye', 'timit'])
     parser.add_argument("--gpu", action='store_true')
+    parser.add_argument("--pretraining", action='store_true')
 
     parser.add_argument("--learning_rate", type=float, default=3e-5)
     parser.add_argument("--batch_size", type=int, default=20)
@@ -25,6 +26,10 @@ def train_model():
     parser.add_argument("--output_model_every", type=int, default=1000)
 
     args = parser.parse_args()
+
+    if args.pretraining and args.corpus_type not in ['buckeye', 'timit']:
+        parser.error("The provided corpus must have golden labels for pretraining, such as 'buckeye' or 'timit'")
+
     pronunciation_dictionary, vocab_size = process_dictionary_args(parser, args)
 
     if args.gpu:
@@ -32,7 +37,8 @@ def train_model():
     else:
         device = 'cpu'
 
-    model, checkpoint = process_model_args(parser, args, vocab_size, device=device)
+    model, checkpoint = process_model_args(parser, args, vocab_size, device=device, pretraining=args.pretraining)
+    val_corpus = None
 
     if args.corpus_type == 'librispeech':
         if args.dictionary != "librispeech":
@@ -43,9 +49,11 @@ def train_model():
     elif args.corpus_type == 'buckeye':
         corpus = BuckeyeCorpus(args.corpus_path, pronunciation_dictionary, return_gold_labels=True)
     elif args.corpus_type == 'timit':
-        corpus = TIMITCorpus(args.corpus_path, pronunciation_dictionary, return_gold_labels=True)
+        corpus = TIMITCorpus(args.corpus_path, pronunciation_dictionary, return_gold_labels=True, split='train')
+        val_corpus = TIMITCorpus(args.corpus_path, pronunciation_dictionary, return_gold_labels=True, split='val')
 
-    trainer = Trainer(model, corpus,
+    trainer = Trainer(model, corpus, val_corpus=val_corpus,
+        pretraining=args.pretraining,
         output_directory=args.output_dir,
         batch_size=args.batch_size,
         lr=args.learning_rate,
@@ -55,6 +63,7 @@ def train_model():
         output_model_every=args.output_model_every,
         checkpoint=checkpoint,
         device=device)
+
     if checkpoint is not None:
         starting_step = checkpoint['step']
     else:

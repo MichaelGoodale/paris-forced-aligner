@@ -4,17 +4,19 @@ import time
 from tqdm.autonotebook import tqdm
 
 import torch
-from torch.nn import CTCLoss, CrossEntropyLoss
+from torch.nn import CTCLoss, NLLLoss
 import torch.nn.functional as F
 
 from paris_forced_aligner.corpus import LibrispeechCorpus, CorpusClass
-from paris_forced_aligner.model import PhonemeDetector, AlignmentPretrainingModel
+from paris_forced_aligner.model import PhonemeDetector
 
 class Trainer:
 
     def __init__(self,
             model: PhonemeDetector,
             corpus: CorpusClass,
+            val_corpus: CorpusClass = None,
+            pretraining = False,
             output_directory:str = "models",
             batch_size:int = 20,
             lr:float = 3e-5,
@@ -27,6 +29,7 @@ class Trainer:
 
         self.device = device
         self.total_steps = total_steps
+        self.pretraining = pretraining
         self.output_model_every = output_model_every
         self.output_directory = output_directory
         self.accumulate_steps = accumulate_steps
@@ -42,11 +45,16 @@ class Trainer:
         self.freeze()
 
         self.corpus = corpus
+        self.val_corpus = val_corpus
 
-        self.loss_fn = CTCLoss()
+        if self.corpus.return_gold_labels:
+            self.loss_fn = NLLLoss()
+        else:
+            self.loss_fn = CTCLoss()
         self.optimizer = torch.optim.Adam(model.parameters(), lr=lr)
         self.memory_max_length = 300000
         self.epoch = 0
+
         if checkpoint is not None:
             self.epoch = checkpoint["epoch"]
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -73,6 +81,32 @@ class Trainer:
         padding_mask = padding_mask.to(self.device)
         return input_wavs, padding_mask
 
+    def prepare_for_cross_entropy(self, transcriptions, X, X_lengths):
+        transcriptions_mat = -100*torch.ones((len(X_lengths), X_lengths.max()), dtype=torch.long)
+        #Ones are ignored indices, this makes it ignored by pytorch crossentropy
+
+        for j, utterance in enumerate(transcriptions):
+            for phone in utterance.base_units:
+                if self.pretraining:
+                    if phone.label == '<SIL>':
+                        phone_idx = 1
+                    elif phone.label == 'V':
+                        phone_idx = 2
+                    elif phone.label == 'C':
+                        phone_idx = 3
+                else:
+                    phone_idx = self.corpus.pronunciation_dictionary.phonemic_mapping[phone.label]
+
+                start = max(self.model.get_sample_in_idx(torch.tensor(phone.start)), 0)
+                end = self.model.get_sample_in_idx(torch.tensor(phone.end))
+                transcriptions_mat[j, start:end] = phone_idx
+                if self.pretraining:
+                    transcriptions_mat[j, start] = 0
+
+        transcriptions_mat = transcriptions_mat.to(self.device)
+        X = X.transpose(0, 1).transpose(1, 2)
+        return X, transcriptions_mat
+
     def prepare_ctc_batch(self, batch):
         input_wavs, padding_mask = self.prepare_audio_batch(batch)
         transcription_lengths = torch.tensor([a.tensor_transcription.shape[0] for a in batch])
@@ -83,9 +117,9 @@ class Trainer:
         transcription_lengths = transcription_lengths.to(self.device)
         return input_wavs, padding_mask, transcriptions, transcription_lengths
 
-    def batched_audio_files(self):
+    def batched_audio_files(self, corpus):
         batch = []
-        self.corpus_iterator = tqdm(self.corpus)
+        self.corpus_iterator = tqdm(corpus)
         if self.corpus.return_gold_labels:
             utt_batch = []
             for audio_file, utterance in self.corpus_iterator:
@@ -94,13 +128,13 @@ class Trainer:
                     utt_batch.append(utterance)
 
                 if len(batch) == self.batch_size:
-                    input_wavs, padding_mask = prepare_audio_batch(batch)
+                    input_wavs, padding_mask = self.prepare_audio_batch(batch)
                     yield input_wavs, padding_mask, utt_batch, None
                     utt_batch = []
                     batch = []
 
             if len(batch) != 0:
-                input_wavs, padding_mask = prepare_audio_batch(batch)
+                input_wavs, padding_mask = self.prepare_audio_batch(batch)
                 yield input_wavs, padding_mask, utt_batch, None
                 utt_batch = []
                 batch = []
@@ -119,18 +153,7 @@ class Trainer:
 
     def calculate_loss(self, X, X_lengths, transcriptions, transcription_lengths):
         if self.corpus.return_gold_labels:
-            transcriptions_mat = -100*torch.ones((len(X_lengths), X_lengths.max()), dtype=torch.long)
-            #Ones are ignored indices, this makes it ignored by pytorch crossentropy
-
-            for j, utterance in enumerate(transcriptions):
-                for phone in utterance.base_units:
-                    phone_idx = self.corpus.pronunciation_dictionary.phonemic_mapping[phone.label]
-                    start = model.get_sample_in_idx(phone.start)
-                    end = model.get_sample_in_idx(phone.end)
-                    transcriptions_mat[j, start:end] = phone_idx
-
-            transcriptions_mat = transcriptions_mat.to(self.device)
-            X = X.transpose(0, 1).transpose(1, 2)
+            X, transcriptions_mat = self.prepare_for_cross_entropy(transcriptions, X, X_lengths)
             return self.loss_fn(X, transcriptions_mat) / self.accumulate_steps
         # CTC Loss 
         return self.loss_fn(X, transcriptions, X_lengths, transcription_lengths) / self.accumulate_steps
@@ -149,11 +172,22 @@ class Trainer:
            },
         f"{self.output_directory}/{step}_model.pt")
 
+    def validate(self):
+        sums = 0
+        n = 0
+        for input_wavs, padding_mask, transcriptions, transcription_lengths in self.batched_audio_files(self.val_corpus):
+            X, X_lengths = self.model(input_wavs, padding_mask=padding_mask)
+            X, transcriptions_mat = self.prepare_for_cross_entropy(transcriptions, X, X_lengths)
+            model_transcription = torch.argmax(X, dim=1)
+            sums += torch.sum(model_transcription == transcriptions_mat)
+            n += model_transcription.shape[0]*model_transcription.shape[-1]
+        return sums / n
+
     def train(self, step=0):
         while step < self.total_steps:
             accumulate_step = 0
             losses = []
-            for input_wavs, padding_mask, transcriptions, transcription_lengths in self.batched_audio_files():
+            for input_wavs, padding_mask, transcriptions, transcription_lengths in self.batched_audio_files(self.corpus):
                 if self.frozen and step > self.thaw_after:
                     self.thaw()
 
@@ -176,7 +210,12 @@ class Trainer:
                 if step >= self.total_steps: 
                     break
             self.epoch += 1
-            print(f"Epoch: {self.epoch} Step: {step}/{self.total_steps}, the mean loss is {sum(losses)/len(losses):.4f}")
+            if self.val_corpus is not None:
+                with torch.no_grad():
+                    acc = self.validate()
+                print(f"Epoch: {self.epoch} Step: {step}/{self.total_steps}, the mean loss is {sum(losses)/len(losses):.4f}, accuracy = {100*acc:.4g}%")
+            else:
+                print(f"Epoch: {self.epoch} Step: {step}/{self.total_steps}, the mean loss is {sum(losses)/len(losses):.4f}")
             losses = []
 
         self.save_checkpoint(step)

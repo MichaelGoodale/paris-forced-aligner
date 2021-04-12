@@ -157,12 +157,15 @@ class LibrispeechCorpus(CorpusClass):
 
 class TIMITCorpus(CorpusClass):
 
-    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False, split: str = "train", val_split=0.95, untranscribed_audio=True):
+    vowels = ['UH', 'AXR', 'AO', 'IX', 'UW', 'OY', 'AX-H', 'IY',  'AY', 'AA', 'AE', 'AW', 'OW', 'UX', 'AX', 'AH', 'EY', 'IH']
+
+    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False, split: str = "train", val_split=0.95, untranscribed_audio=True, vowel_consonsant_transcription=True):
         super().__init__(corpus_path, pronunciation_dictionary, return_gold_labels)
         if split not in ["train", "test", "val", "both"]:
             raise NotImplementedError("TIMIT has only a test, train and val split, please set `split` in ['train', 'test', 'val' 'both']")
         self.split = split
         self.untranscribed_audio = untranscribed_audio
+        self.vowel_consonsant_transcription = vowel_consonsant_transcription
 
         corpus_paths = [os.path.join(self.corpus_path, x) for x in ["train", "test"]]
         if self.split == "train":
@@ -211,16 +214,16 @@ class TIMITCorpus(CorpusClass):
 
                     label = label.upper()
 
-                    if len(word_timing) >= 1 and end > word_timing[0][2]:
-                        word = Word(word, word_timing[0][0])
-                        data.append(word)
-                        word_timing = word_timing[1:]
-                        word = []
-
                     if len(word) >= 1 and word[-1].label == label and label in ["B", "P", "D", "T", "G", "K"]:
                         word[-1].end = end
                     else:
                         word.append(Phone(label, start, end))
+
+                    if len(word_timing) >= 1 and end >= word_timing[0][2]:
+                        word = Word(word, word_timing[0][0])
+                        data.append(word)
+                        word_timing = word_timing[1:]
+                        word = []
         return Utterance(data)
 
     def extract_files(self, return_gold_labels):
@@ -230,6 +233,13 @@ class TIMITCorpus(CorpusClass):
                 transcription = ""
             else:
                 transcription = utterance.transcription
+
+            if self.vowel_consonsant_transcription:
+                for phone in utterance.base_units:
+                    if phone.label in TIMITCorpus.vowels:
+                        phone.label = "V"
+                    elif phone.label != '<SIL>':
+                        phone.label = "C"
 
             audio = AudioFile(wav_f, transcription, self.pronunciation_dictionary)
 

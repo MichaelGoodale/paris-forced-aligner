@@ -130,7 +130,3 @@ class PhonemeDetector(nn.Module):
     def unfreeze_wav2vec(self):
         for name, param in self.wav2vec.named_parameters():
             param.requires_grad = True
-
-def AlignmentPretrainingModel(PhonemeDetector):
-    def __init__(self, filepath, internal_dim=256):
-        super().__init__(filepath, 3, internal_dim)
