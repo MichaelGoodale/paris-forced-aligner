@@ -46,6 +46,10 @@ class Trainer:
         self.loss_fn = CTCLoss()
         self.optimizer = torch.optim.Adam(model.parameters(), lr=lr)
         self.memory_max_length = 300000
+        self.epoch = 0
+        if checkpoint is not None:
+            self.epoch = checkpoint["epoch"]
+            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
     def freeze(self):
         self.frozen = True
@@ -145,9 +149,7 @@ class Trainer:
            },
         f"{self.output_directory}/{step}_model.pt")
 
-    def train(self):
-        step = 0
-        self.epoch = 0
+    def train(self, step=0):
         while step < self.total_steps:
             accumulate_step = 0
             losses = []

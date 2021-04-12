@@ -55,7 +55,11 @@ def train_model():
         output_model_every=args.output_model_every,
         checkpoint=checkpoint,
         device=device)
-    trainer.train()
+    if checkpoint is not None:
+        starting_step = checkpoint['step']
+    else:
+        starting_step = 0
+    trainer.train(starting_step)
 
 if __name__ == "__main__":
     train_model()
