@@ -15,6 +15,7 @@ def train_model():
     parser.add_argument("--output_dir", default="models")
     parser.add_argument("--corpus_path", type=str, required=True)
     parser.add_argument("--corpus_type", default="librispeech", choices=['librispeech', 'youtube', 'buckeye', 'timit'])
+    parser.add_argument("--timit_val_corpus", type=str)
     parser.add_argument("--gpu", action='store_true')
     parser.add_argument("--pretraining", action='store_true')
 
@@ -39,18 +40,20 @@ def train_model():
 
     model, checkpoint = process_model_args(parser, args, vocab_size, device=device, pretraining=args.pretraining)
     val_corpus = None
+    if args.timit_val_corpus is not None:
+        val_corpus = TIMITCorpus(args.timit_val_corpus, pronunciation_dictionary, return_gold_labels=True, split='val')
 
     if args.corpus_type == 'librispeech':
         if args.dictionary != "librispeech":
             parser.error("You must use --dictionary librispeech when using --corpus librispeech")
-        corpus = LibrispeechCorpus(args.corpus_path)
+        corpus = LibrispeechCorpus(args.corpus_path, pronunciation_dictionary)
     elif args.corpus_type == 'youtube':
         corpus = YoutubeCorpus(args.corpus_path, pronunciation_dictionary)
     elif args.corpus_type == 'buckeye':
         corpus = BuckeyeCorpus(args.corpus_path, pronunciation_dictionary, return_gold_labels=True)
     elif args.corpus_type == 'timit':
-        corpus = TIMITCorpus(args.corpus_path, pronunciation_dictionary, return_gold_labels=True, split='train')
-        val_corpus = TIMITCorpus(args.corpus_path, pronunciation_dictionary, return_gold_labels=True, split='val')
+        corpus = TIMITCorpus(args.corpus_path, pronunciation_dictionary, return_gold_labels=True, vowel_consonsant_transcription=args.pretraining, split='train')
+        val_corpus = TIMITCorpus(args.corpus_path, pronunciation_dictionary, return_gold_labels=True, vowel_consonsant_transcription=args.pretraining, split='val')
 
     trainer = Trainer(model, corpus, val_corpus=val_corpus,
         pretraining=args.pretraining,

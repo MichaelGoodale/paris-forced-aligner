@@ -69,6 +69,14 @@ class Utterance:
         return base
 
     @property
+    def phones(self):
+        phones = []
+        for d in self.data:
+            if not isinstance(d, Silence):
+                phones += d.phones
+        return phones 
+
+    @property
     def transcription(self):
         return " ".join(w.label for w in self.words)
 

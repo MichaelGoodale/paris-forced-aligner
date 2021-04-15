@@ -111,7 +111,7 @@ def align():
                     name_utt_dict[name].append(utterance)
 
             for name, utterances in name_utt_dict.items():
-                big_utterance = Utterance([d for u in utterances for d in u.data])
+                big_utterance = Utterance([d for u in sorted(utterances, key=lambda u: u.start) for d in u.data])
                 #big_utterance = corpus.stitch_youtube_utterances(name, utterances)
                 output_file = name + '.TextGrid' if args.save_as == 'textgrid' else '.csv'
                 if not args.overwrite and os.path.exists(output_file):

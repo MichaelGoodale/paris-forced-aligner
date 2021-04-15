@@ -202,20 +202,20 @@ class PronunciationDictionary:
                 model_path)
 
     def add_G2P_spelling(self, word: str):
-        word = torch.LongTensor([[self.graphemic_mapping[w] for w in word] + [self.grapheme_pad_idx]]).T.to(self.device)
+        word_tensor = torch.LongTensor([[self.graphemic_mapping[w] if w in self.graphemic_mapping else self.grapheme_oov_idx for w in word] + [self.grapheme_pad_idx]]).T.to(self.device)
         pronunciation = torch.LongTensor([[self.phoneme_start_idx]]).T.to(self.device)
         beams = [(0.0, pronunciation.clone())]
         i = 0
-        while i < int(len(word)*2):
+        while i < int(len(word_tensor)*2):
             new_beams = []
             for probability, pronunciation in beams:
-                y = self.G2P_model(word, pronunciation)
+                y = self.G2P_model(word_tensor, pronunciation)
                 probabilities, indices = torch.topk(y[-1, :, :], 5, dim=-1)
                 for p, idx in zip(probabilities[0], indices[0]):
                     pronunciation = torch.cat((pronunciation, idx.unsqueeze(0).unsqueeze(0)))
                     new_beams.append((probability + p, pronunciation.clone()))
             i += 1
-            beams = sorted(new_beams, reverse=True)[:50]
+            beams = sorted(new_beams, key=lambda x: x[0], reverse=True)[:50]
 
         pronunciation = []
         for phone in beams[0][1][:, 0]:
@@ -233,10 +233,10 @@ class PronunciationDictionary:
 
     def split_sentence(self, sentence:str) -> List[str]:
         return_sentence = []
-        for word in sentence.strip('-').split():
+        for word in sentence.replace('-', ' ').split():
             if word.isdigit():
-                word = num2words(int(word), lang=self.lang).strip('-').split(' ')
-                return_sentence += word.upper()
+                word = num2words(int(word), lang=self.lang).replace('-', ' ').upper().split(' ')
+                return_sentence += word
             else:
                 return_sentence.append(word.upper())
         return return_sentence
@@ -246,17 +246,20 @@ class PronunciationDictionary:
         spelling: List[str] = [PronunciationDictionary.silence]
 
         for word in sentence:
-            if word not in self.lexicon:
-                if not self.use_G2P:
-                    raise OutOfVocabularyException(f"{word} is not present in the lexicon")
-                self.add_G2P_spelling(word)
-
-            spelling += self.lexicon[word]
+            spelling += self.spelling(word)
             spelling.append(PronunciationDictionary.silence)
 
         if return_words:
             return spelling, sentence
         return spelling
+
+    def spelling(self, word: str) -> List[str]:
+        if word not in self.lexicon:
+            if not self.use_G2P:
+                raise OutOfVocabularyException(f"{word} is not present in the lexicon")
+            self.add_G2P_spelling(word)
+        return self.lexicon[word]
+
 
 class LibrispeechDictionary(PronunciationDictionary):
     LIBRISPEECH_URL = 'https://www.openslr.org/resources/11/librispeech-lexicon.txt'

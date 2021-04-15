@@ -1,8 +1,11 @@
+from typing import List, Tuple
+
 import torch
 
 from paris_forced_aligner.model import PhonemeDetector
 from paris_forced_aligner.audio_data import AudioFile
 from paris_forced_aligner.phonological import Utterance, Phone, Word, Silence
+
 
 class ForcedAligner:
 
@@ -10,9 +13,7 @@ class ForcedAligner:
         self.model = model
         self.BEAMS = n_beams
 
-    def align_file(self, audio: AudioFile):
-        X = self.model(audio.wav)
-        y = audio.tensor_transcription
+    def align_tensors(self, X, y, pron_dict, wav_length, offset=0):    
         beams = [(0, y, [])]
         for t in range(X.shape[0]):
             #Kinda funky candidates dict to prevent repeat paths based on prob
@@ -35,9 +36,12 @@ class ForcedAligner:
 
         for t, x in enumerate(states):
             if old_x != x:
-                inference.append((audio.pronunciation_dictionary.index_to_phone(x), int((t / X.shape[0]) * audio.wav.shape[1]) + audio.offset))
+                time_16khz = int((t / X.shape[0]) * wav_length) + offset
+                inference.append((pron_dict.index_to_phone(x), time_16khz))
             old_x = x
+        return inference
 
+    def to_utterance(self, inference: List[Tuple[str, int]], words: List[str], wav_length:int) -> Utterance:
         word_idx = 0
         utterance = []
         current_word = []
@@ -45,11 +49,11 @@ class ForcedAligner:
             if i < len(inference) - 1:
                 end = inference[i+1][1]
             else:
-                end = audio.wav.shape[-1]
+                end = wav_length
 
             if phone == "<SIL>":
                 if current_word != []:
-                    utterance.append(Word(current_word, audio.words[word_idx]))
+                    utterance.append(Word(current_word, words[word_idx]))
                     word_idx += 1
                     current_word = []
                 utterance.append(Silence(start, end))
@@ -57,4 +61,10 @@ class ForcedAligner:
                 if start != end:
                     current_word.append(Phone(phone, start, end))
         return Utterance(utterance)
+
+    def align_file(self, audio: AudioFile):
+        X = self.model(audio.wav)
+        y = audio.tensor_transcription
+        inference = self.align_tensors(X, y, audio.pronunciation_dictionary, audio.wav.shape[1], audio.offset)
+        return self.to_utterance(inference, audio.words)
 

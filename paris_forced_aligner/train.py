@@ -9,6 +9,7 @@ import torch.nn.functional as F
 
 from paris_forced_aligner.corpus import LibrispeechCorpus, CorpusClass
 from paris_forced_aligner.model import PhonemeDetector
+from paris_forced_aligner.inference import ForcedAligner
 
 class Trainer:
 
@@ -43,6 +44,7 @@ class Trainer:
         self.model = model
         self.model.train()
         self.freeze()
+        self.forced_aligner = ForcedAligner(self.model, n_beams=10)
 
         self.corpus = corpus
         self.val_corpus = val_corpus
@@ -120,7 +122,7 @@ class Trainer:
     def batched_audio_files(self, corpus):
         batch = []
         self.corpus_iterator = tqdm(corpus)
-        if self.corpus.return_gold_labels:
+        if corpus.return_gold_labels:
             utt_batch = []
             for audio_file, utterance in self.corpus_iterator:
                 if audio_file.wav.shape[1] < self.memory_max_length:
@@ -172,7 +174,7 @@ class Trainer:
            },
         f"{self.output_directory}/{step}_model.pt")
 
-    def validate(self):
+    def pretraining_validate(self):
         sums = 0
         n = 0
         for input_wavs, padding_mask, transcriptions, transcription_lengths in self.batched_audio_files(self.val_corpus):
@@ -182,6 +184,36 @@ class Trainer:
             sums += torch.sum(model_transcription == transcriptions_mat)
             n += model_transcription.shape[0]*model_transcription.shape[-1]
         return sums / n
+
+    def validate(self):
+        if self.pretraining:
+            return self.pretraining_validate()
+
+        offsets = {"word_start":[],
+                   "word_end":[],
+                   "phone_start":[],
+                   "phone_end":[]}
+
+        for input_wavs, padding_mask, transcriptions, _ in self.batched_audio_files(self.val_corpus):
+            X, X_lengths = self.model(input_wavs, padding_mask=padding_mask)
+            for i, utterance in enumerate(transcriptions):
+                wav_length = torch.sum(padding_mask[i, :])
+                probs = X[:wav_length, i, :].unsqueeze(1)
+                lexical_phones, words = self.corpus.pronunciation_dictionary.spell_sentence(utterance.transcription)
+                y = torch.tensor([self.corpus.pronunciation_dictionary.phonemic_mapping[x] \
+                                                    for x in lexical_phones], device=self.device)
+                inference = self.forced_aligner.align_tensors(probs, y, self.corpus.pronunciation_dictionary, wav_length)
+                aligned_utterance = self.forced_aligner.to_utterance(inference, words, wav_length)
+                for aligned_word, real_word in zip(aligned_utterance.words, utterance.words):
+                    offsets["word_start"].append(abs(aligned_word.start - real_word.start))
+                    offsets["word_end"].append(abs(aligned_word.end - real_word.end))
+                    if len(aligned_word.phones) == len(real_word.phones):
+                        for a, r in zip(aligned_word.phones, real_word.phones):
+                            offsets["phone_start"].append(abs(a.start - r.start))
+                            offsets["phone_end"].append(abs(a.end - r.end))
+        for key, item in offsets.items():
+            offsets[key] = (sum(item)/len(item)) / 16 #milliseconds
+        return offsets 
 
     def train(self, step=0):
         while step < self.total_steps:
@@ -212,8 +244,11 @@ class Trainer:
             self.epoch += 1
             if self.val_corpus is not None:
                 with torch.no_grad():
-                    acc = self.validate()
-                print(f"Epoch: {self.epoch} Step: {step}/{self.total_steps}, the mean loss is {sum(losses)/len(losses):.4f}, accuracy = {100*acc:.4g}%")
+                    metrics = self.validate()
+                s = ""
+                for metric, val in metrics:
+                    s += f", {metric} = {val:.4g}"
+                print(f"Epoch: {self.epoch} Step: {step}/{self.total_steps}, the mean loss is {sum(losses)/len(losses):.4f}"+s)
             else:
                 print(f"Epoch: {self.epoch} Step: {step}/{self.total_steps}, the mean loss is {sum(losses)/len(losses):.4f}")
             losses = []

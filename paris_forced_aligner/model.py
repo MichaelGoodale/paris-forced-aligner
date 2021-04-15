@@ -44,6 +44,29 @@ class G2PModel(nn.Module):
         x = self.fc(x)
         return F.log_softmax(x, dim=-1)
 
+class UpscaledWav2Vec(nn.Module):
+    def __init__(self, upscale_factor=5):
+        super().__init__()
+        self.wav2vec = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base-960h")
+        self.upscale = nn.Upsample(scale_factor=upscale_factor, mode='linear', align_corners=False)
+        self.upscale_factor = upscale_factor
+
+    def forward(self, wav_input_16khz, padding_mask=None):
+
+        if self.wav2vec.config.feat_extract_norm == "layer":
+            c = self.wav2vec(wav_input_16khz, attention_mask=padding_mask)
+        else:
+            if padding_mask is not None:
+                wav_input_16khz = wav_input_16khz * padding_mask
+            c = self.wav2vec(wav_input_16khz)
+
+        x = self.upscale(c['last_hidden_state'].transpose(1,2))
+        x = x.transpose(1,2)
+        if padding_mask is not None:
+            x_lengths = self.upscale_factor * self.wav2vec._get_feat_extract_output_lengths((padding_mask).sum(-1))
+            return x, x_lengths
+        return x
+
 class Upscaler(nn.Module):
     def __init__(self, input_dim, internal_dim):
         super().__init__()
@@ -65,6 +88,11 @@ class Upscaler(nn.Module):
 
     def invert_upscale_length(self, length: int) -> int:
         return ((idx + 7) / 4)
+
+class RawPhonemeDetector(nn.Module):
+    def __init__(self, filepath, vocab_size, internal_vector_size=256):
+        super().__init__()
+        ##NN directly from MFCCs
 
 
 class PhonemeDetector(nn.Module):

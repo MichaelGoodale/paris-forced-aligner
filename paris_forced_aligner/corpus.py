@@ -89,8 +89,8 @@ class YoutubeCorpus(CorpusClass):
                 transcription = cap_string.text.strip().upper()
                 if transcription == '':
                     continue
-                start = int(cap_time.start_in_seconds * sr)
-                end = int(cap_time.end_in_seconds * sr)
+                start = int(cap_time.start_in_seconds * 16000)
+                end = int(cap_time.end_in_seconds * 16000)
 
                 if self.save_wavs:
                     idx_starts_ends.append((i, int(start / sr  * 16000), int(end / sr * 16000)))
@@ -124,8 +124,10 @@ class YoutubeCorpus(CorpusClass):
         self._temp_dir.cleanup()
 
 class LibrispeechCorpus(CorpusClass):
-    def __init__(self, corpus_path: str):
-        super().__init__(corpus_path, LibrispeechDictionary())
+    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary = None):
+        if pronunciation_dictionary is None:
+            pronunciation_dictionary = LibrispeechDictionary()
+        super().__init__(corpus_path, pronunciation_dictionary)
 
         found_files = False
         self.all_files = []
@@ -159,7 +161,7 @@ class TIMITCorpus(CorpusClass):
 
     vowels = ['UH', 'AXR', 'AO', 'IX', 'UW', 'OY', 'AX-H', 'IY',  'AY', 'AA', 'AE', 'AW', 'OW', 'UX', 'AX', 'AH', 'EY', 'IH']
 
-    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False, split: str = "train", val_split=0.95, untranscribed_audio=True, vowel_consonsant_transcription=True):
+    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False, split: str = "train", val_split=0.95, untranscribed_audio=True, vowel_consonsant_transcription=False):
         super().__init__(corpus_path, pronunciation_dictionary, return_gold_labels)
         if split not in ["train", "test", "val", "both"]:
             raise NotImplementedError("TIMIT has only a test, train and val split, please set `split` in ['train', 'test', 'val' 'both']")
@@ -189,6 +191,21 @@ class TIMITCorpus(CorpusClass):
                 self.all_files = self.all_files[int(val_split*len(self.all_files)):]
             else:
                 self.all_files = self.all_files[:int(val_split*len(self.all_files))]
+
+    def relabel_word(self, word: List[str], word_label: str) -> List[str]:
+        real_spelling = self.pronunciation_dictionary.spelling(word_label)
+        if len(word) == len(real_spelling):
+            for i, phone in enumerate(word):
+                phone.label = real_spelling[i]
+        else:
+            real_vowels = [w for w in real_spelling if w[-1] in ['1', '2', '0']]
+            if len([w for w in word if w.label in TIMITCorpus.vowels]) == len(real_vowels):
+                vowel_idx = 0
+                for i, phone in enumerate(word):
+                    if phone.label in TIMITCorpus.vowels:
+                        phone.label = real_vowels[vowel_idx]
+                        vowel_idx += 1
+        return word
 
     def get_utterance(self, phn_f, word_f):
         word_timing = []
@@ -220,6 +237,8 @@ class TIMITCorpus(CorpusClass):
                         word.append(Phone(label, start, end))
 
                     if len(word_timing) >= 1 and end >= word_timing[0][2]:
+                        word_label = word_timing[0][0]
+                        word = self.relabel_word(word, word_label)
                         word = Word(word, word_timing[0][0])
                         data.append(word)
                         word_timing = word_timing[1:]
