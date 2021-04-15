@@ -224,7 +224,7 @@ class Trainer:
                 with torch.no_grad():
                     metrics = self.validate()
                 s = ""
-                for metric, val in metrics:
+                for metric, val in metrics.items():
                     s += f", {metric} = {val:.4g}"
                 print(f"Epoch: {self.epoch} Step: {step}/{self.total_steps}, the mean loss is {sum(losses)/max(1, len(losses)):.4f}"+s)
             else:
