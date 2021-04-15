@@ -105,7 +105,6 @@ class PhonemeDetector(nn.Module):
         self.fc = nn.Linear(internal_vector_size, vocab_size - 1)
 
     def forward(self, wav_input_16khz, padding_mask=None, device='cpu'):
-
         if self.wav2vec.config.feat_extract_norm == "layer":
             c = self.wav2vec(wav_input_16khz, attention_mask=padding_mask)
         else:
