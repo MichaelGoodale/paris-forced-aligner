@@ -215,7 +215,7 @@ class PronunciationDictionary:
                     pronunciation = torch.cat((pronunciation, idx.unsqueeze(0).unsqueeze(0)))
                     new_beams.append((probability + p, pronunciation.clone()))
             i += 1
-            beams = sorted(new_beams, key=lambda x: x[0], reverse=True)[:50]
+            beams = sorted(new_beams, key=lambda x: x[0], reverse=True)[:10]
 
         pronunciation = []
         for phone in beams[0][1][:, 0]:

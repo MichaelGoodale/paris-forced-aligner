@@ -156,7 +156,6 @@ class LibrispeechCorpus(CorpusClass):
     def __len__(self):
         return len(self.all_files)
 
-
 class TIMITCorpus(CorpusClass):
 
     vowels = ['UH', 'AXR', 'AO', 'IX', 'UW', 'OY', 'AX-H', 'IY',  'AY', 'AA', 'AE', 'AW', 'OW', 'UX', 'AX', 'AH', 'EY', 'IH']

@@ -219,6 +219,17 @@ class Trainer:
         while step < self.total_steps:
             accumulate_step = 0
             losses = []
+
+            if self.val_corpus is not None:
+                with torch.no_grad():
+                    metrics = self.validate()
+                s = ""
+                for metric, val in metrics:
+                    s += f", {metric} = {val:.4g}"
+                print(f"Epoch: {self.epoch} Step: {step}/{self.total_steps}, the mean loss is {sum(losses)/max(1, len(losses)):.4f}"+s)
+            else:
+                print(f"Epoch: {self.epoch} Step: {step}/{self.total_steps}, the mean loss is {sum(losses)/max(1, len(losses)):.4f}")
+
             for input_wavs, padding_mask, transcriptions, transcription_lengths in self.batched_audio_files(self.corpus):
                 if self.frozen and step > self.thaw_after:
                     self.thaw()
@@ -242,15 +253,6 @@ class Trainer:
                 if step >= self.total_steps: 
                     break
             self.epoch += 1
-            if self.val_corpus is not None:
-                with torch.no_grad():
-                    metrics = self.validate()
-                s = ""
-                for metric, val in metrics:
-                    s += f", {metric} = {val:.4g}"
-                print(f"Epoch: {self.epoch} Step: {step}/{self.total_steps}, the mean loss is {sum(losses)/len(losses):.4f}"+s)
-            else:
-                print(f"Epoch: {self.epoch} Step: {step}/{self.total_steps}, the mean loss is {sum(losses)/len(losses):.4f}")
             losses = []
 
         self.save_checkpoint(step)
