@@ -24,16 +24,16 @@ def add_dictionary_args(parser: argparse.ArgumentParser):
     parser.add_argument("--dictionary_path", type=str)
     parser.add_argument("--G2P_model", type=str)
 
-def process_dictionary_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> Tuple[PronunciationDictionary, int]:
+def process_dictionary_args(parser: argparse.ArgumentParser, args: argparse.Namespace, device:str = 'cpu') -> Tuple[PronunciationDictionary, int]:
     use_G2P = args.G2P_model is not None
     if args.dictionary == "librispeech":
-        dictionary = LibrispeechDictionary(use_G2P=use_G2P, G2P_model_path=args.G2P_model)
+        dictionary = LibrispeechDictionary(use_G2P=use_G2P, G2P_model_path=args.G2P_model, device=device)
     elif args.dictionary == "librispeech_unstressed":
-        dictionary = LibrispeechDictionary(use_G2P=use_G2P, G2P_model_path=args.G2P_model, remove_stress=True)
+        dictionary = LibrispeechDictionary(use_G2P=use_G2P, G2P_model_path=args.G2P_model, remove_stress=True, device=device)
     elif args.dictionary == "tsv":
         if not args.dictionary_path:
             parser.error("Please supply --dictionary_path when using TSV dictionaries")
-        dictionary = TSVDictionary(args.dictionary_path, use_G2P=use_G2P, G2P_model_path=args.G2P_model)
+        dictionary = TSVDictionary(args.dictionary_path, use_G2P=use_G2P, G2P_model_path=args.G2P_model, device=device)
     return dictionary, dictionary.vocab_size()
 
 def process_model_args(parser: argparse.ArgumentParser, args: argparse.Namespace, vocab_size: int, pretraining: bool = False, device:str = 'cpu') -> str:

@@ -31,12 +31,13 @@ def train_model():
     if args.pretraining and args.corpus_type not in ['buckeye', 'timit']:
         parser.error("The provided corpus must have golden labels for pretraining, such as 'buckeye' or 'timit'")
 
-    pronunciation_dictionary, vocab_size = process_dictionary_args(parser, args)
-
     if args.gpu:
         device = 'cuda:0'
     else:
         device = 'cpu'
+
+    pronunciation_dictionary, vocab_size = process_dictionary_args(parser, args, device=device)
+
 
     model, checkpoint = process_model_args(parser, args, vocab_size, device=device, pretraining=args.pretraining)
     val_corpus = None
