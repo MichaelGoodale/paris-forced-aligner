@@ -39,7 +39,7 @@ class PronunciationDictionary:
         self.graphemic_inventory: Set[str] = set()
         self.phone_to_phoneme: Mapping[str, str] = {}
         self.load_lexicon()
-        self.phonemic_mapping: Mapping[str, int] = {phone: i+1 for i, phone in \
+        self.phonemic_mapping: Mapping[str, int] = {phone: i + 1 for i, phone in \
                                             enumerate(sorted(self.phonemic_inventory))}
 
         self.graphemic_mapping: Mapping[str, int] = {grapheme: i for i, grapheme in \
