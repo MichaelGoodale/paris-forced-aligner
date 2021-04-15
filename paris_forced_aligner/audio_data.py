@@ -209,7 +209,7 @@ class PronunciationDictionary:
         while i < int(len(word_tensor)*2):
             new_beams = []
             for probability, pronunciation in beams:
-                y = self.G2P_model(word_tensor, pronunciation)
+                y = self.G2P_model(word_tensor, pronunciation, device=self.device)
                 probabilities, indices = torch.topk(y[-1, :, :], 5, dim=-1)
                 for p, idx in zip(probabilities[0], indices[0]):
                     pronunciation = torch.cat((pronunciation, idx.unsqueeze(0).unsqueeze(0)))
