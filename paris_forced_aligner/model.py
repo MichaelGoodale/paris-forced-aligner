@@ -104,7 +104,7 @@ class PhonemeDetector(nn.Module):
         self.upscaler = Upscaler(self.wav2vec.config.hidden_size, internal_vector_size)
         self.fc = nn.Linear(internal_vector_size, vocab_size - 1)
 
-    def forward(self, wav_input_16khz, padding_mask=None):
+    def forward(self, wav_input_16khz, padding_mask=None, device='cpu'):
 
         if self.wav2vec.config.feat_extract_norm == "layer":
             c = self.wav2vec(wav_input_16khz, attention_mask=padding_mask)
@@ -116,7 +116,7 @@ class PhonemeDetector(nn.Module):
         x = self.upscaler(c['last_hidden_state'].transpose(1,2))
         x = x.transpose(1,2).transpose(0,1)
         x = F.relu(self.fc(x))
-        x = torch.cat((-10000*torch.ones((x.shape[0], x.shape[1], 1)), x), dim=-1)
+        x = torch.cat((-10000*torch.ones((x.shape[0], x.shape[1], 1), device=device), x), dim=-1)
         x = F.log_softmax(x, dim=-1)
 
         if padding_mask is not None:

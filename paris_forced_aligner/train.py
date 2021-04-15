@@ -178,7 +178,7 @@ class Trainer:
         sums = 0
         n = 0
         for input_wavs, padding_mask, transcriptions, transcription_lengths in self.batched_audio_files(self.val_corpus):
-            X, X_lengths = self.model(input_wavs, padding_mask=padding_mask)
+            X, X_lengths = self.model(input_wavs, padding_mask=padding_mask, device=self.device)
             X, transcriptions_mat = self.prepare_for_cross_entropy(transcriptions, X, X_lengths)
             model_transcription = torch.argmax(X, dim=1)
             sums += torch.sum(model_transcription == transcriptions_mat)
@@ -195,7 +195,7 @@ class Trainer:
                    "phone_end":[]}
 
         for input_wavs, padding_mask, transcriptions, _ in self.batched_audio_files(self.val_corpus):
-            X, X_lengths = self.model(input_wavs, padding_mask=padding_mask)
+            X, X_lengths = self.model(input_wavs, padding_mask=padding_mask, device=self.device)
             for i, utterance in enumerate(transcriptions):
                 wav_length = torch.sum(padding_mask[i, :])
                 probs = X[:wav_length, i, :].unsqueeze(1)
@@ -234,7 +234,7 @@ class Trainer:
                 if self.frozen and step > self.thaw_after:
                     self.thaw()
 
-                X, X_lengths = self.model(input_wavs, padding_mask=padding_mask)
+                X, X_lengths = self.model(input_wavs, padding_mask=padding_mask, device=self.device)
                 loss = self.calculate_loss(X, X_lengths, transcriptions, transcription_lengths)
                 accumulate_step += 1
                 loss.backward()
