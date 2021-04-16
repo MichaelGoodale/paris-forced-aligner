@@ -25,6 +25,7 @@ class OutOfVocabularyException(Exception):
 
 class PronunciationDictionary:
     silence = "<SIL>"
+    blank = "<BLANK>"
     OOV = "<OOV>"
 
     def __init__(self, use_G2P:bool = False, lang='en', 
@@ -35,13 +36,15 @@ class PronunciationDictionary:
             train_params = {"n_epochs": 10, "lr": 3e-4, "batch_size":64,}):
 
         self.lexicon: Mapping[str, List[str]] = {}
-        self.phonemic_inventory: Set[str] = set([PronunciationDictionary.silence])
+        self.phonemic_inventory: Set[str] = set()
         self.graphemic_inventory: Set[str] = set()
         self.phone_to_phoneme: Mapping[str, str] = {}
         self.load_lexicon()
-        self.phonemic_mapping: Mapping[str, int] = {phone: i + 1 for i, phone in \
+        self.phonemic_mapping: Mapping[str, int] = {phone: i+1 for i, phone in \
                                             enumerate(sorted(self.phonemic_inventory))}
 
+        self.phonemic_inventory.add(PronunciationDictionary.blank)
+        self.phonemic_mapping[PronunciationDictionary.blank] = 0
         self.graphemic_mapping: Mapping[str, int] = {grapheme: i for i, grapheme in \
                                             enumerate(sorted(self.graphemic_inventory))}
 
@@ -82,7 +85,7 @@ class PronunciationDictionary:
         raise NotImplementedError("Lexicon loading must be defined in a subclass of PronunciationDictionary")
 
     def vocab_size(self) -> int:
-        return len(self.phonemic_inventory) + 1
+        return len(self.phonemic_inventory)
 
     def index_to_phone(self, idx: int) -> str:
         return self.index_mapping[idx]
@@ -243,11 +246,10 @@ class PronunciationDictionary:
 
     def spell_sentence(self, sentence: str, return_words: bool = True):
         sentence = self.split_sentence(sentence)
-        spelling: List[str] = [PronunciationDictionary.silence]
+        spelling: List[str] = []
 
         for word in sentence:
             spelling += self.spelling(word)
-            spelling.append(PronunciationDictionary.silence)
 
         if return_words:
             return spelling, sentence

@@ -160,7 +160,7 @@ class TIMITCorpus(CorpusClass):
 
     vowels = ['UH', 'AXR', 'AO', 'IX', 'UW', 'OY', 'AX-H', 'IY',  'AY', 'AA', 'AE', 'AW', 'OW', 'UX', 'AX', 'AH', 'EY', 'IH']
 
-    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False, split: str = "train", val_split=0.95, untranscribed_audio=True, vowel_consonsant_transcription=False):
+    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False, split: str = "train", val_split=0.75, untranscribed_audio=True, vowel_consonsant_transcription=False):
         super().__init__(corpus_path, pronunciation_dictionary, return_gold_labels)
         if split not in ["train", "test", "val", "both"]:
             raise NotImplementedError("TIMIT has only a test, train and val split, please set `split` in ['train', 'test', 'val' 'both']")

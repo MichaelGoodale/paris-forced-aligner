@@ -111,10 +111,19 @@ class Trainer:
 
     def prepare_ctc_batch(self, batch):
         input_wavs, padding_mask = self.prepare_audio_batch(batch)
-        transcription_lengths = torch.tensor([a.tensor_transcription.shape[0] for a in batch])
+        transcription_lengths = torch.tensor([2*a.tensor_transcription.shape[0] for a in batch])
         transcriptions = torch.zeros((len(batch), transcription_lengths.max()))
+
+        vocab_size = self.corpus.pronunciation_dictionary.vocab_size() - 1 #Subtract blank
+
+        #We're basically making it so that a sequence of 1 2 3 4
+        #becomes 1 5 2 6 3 7 4 8
+        #Where 1 5 = start 1 end 1
+        #2 6 = start 2 end 2 etc
         for i, (length, a) in enumerate(zip(transcription_lengths, batch)):
-            transcriptions[i, :length] = a.tensor_transcription
+            onset_offset_transcription = a.tensor_transcription.repeat_interleave(2)
+            onset_offset_transcription[1::2] += vocab_size - 1
+            transcriptions[i, :length] = onset_offset_transcription
         transcriptions = transcriptions.to(self.device)
         transcription_lengths = transcription_lengths.to(self.device)
         return input_wavs, padding_mask, transcriptions, transcription_lengths
@@ -203,7 +212,8 @@ class Trainer:
                 y = torch.tensor([self.corpus.pronunciation_dictionary.phonemic_mapping[x] \
                                                     for x in lexical_phones], device=self.device)
                 inference = self.forced_aligner.align_tensors(probs, y, self.corpus.pronunciation_dictionary, wav_length)
-                aligned_utterance = self.forced_aligner.to_utterance(inference, words, wav_length)
+                aligned_utterance = self.forced_aligner.to_utterance(inference, words, wav_length, self.corpus.pronunciation_dictionary)
+
                 for aligned_word, real_word in zip(aligned_utterance.words, utterance.words):
                     offsets["word_start"].append(abs(aligned_word.start - real_word.start))
                     offsets["word_end"].append(abs(aligned_word.end - real_word.end))
@@ -216,9 +226,9 @@ class Trainer:
         return offsets 
 
     def train(self, step=0):
+        losses = []
         while step < self.total_steps:
             accumulate_step = 0
-            losses = []
 
             if self.val_corpus is not None:
                 with torch.no_grad():
@@ -230,6 +240,7 @@ class Trainer:
             else:
                 print(f"Epoch: {self.epoch} Step: {step}/{self.total_steps}, the mean loss is {sum(losses)/max(1, len(losses)):.4f}")
 
+            losses = []
             for input_wavs, padding_mask, transcriptions, transcription_lengths in self.batched_audio_files(self.corpus):
                 if self.frozen and step > self.thaw_after:
                     self.thaw()
@@ -253,7 +264,6 @@ class Trainer:
                 if step >= self.total_steps: 
                     break
             self.epoch += 1
-            losses = []
 
         self.save_checkpoint(step)
 
