@@ -96,13 +96,18 @@ class RawPhonemeDetector(nn.Module):
 
 
 class PhonemeDetector(nn.Module):
-    def __init__(self, filepath, vocab_size, internal_vector_size=256):
+    def __init__(self, filepath, vocab_size, internal_vector_size=256, upscale=True):
         super().__init__()
         self.filepath = filepath
         self.vocab_size = vocab_size
         self.wav2vec = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base-960h")#, apply_spec_augment=False)
-        self.upscaler = Upscaler(self.wav2vec.config.hidden_size, internal_vector_size)
-        self.fc = nn.Linear(internal_vector_size, 2*vocab_size - 1)
+        self.upscale = upscale
+        if upscale:
+            self.upscaler = Upscaler(self.wav2vec.config.hidden_size, internal_vector_size)
+            self.fc = nn.Linear(internal_vector_size, 2*vocab_size - 1)
+        else:
+            self.fc = nn.Linear(self.wav2vec.config.hidden_size, 2*vocab_size - 1)
+
 
     def forward(self, wav_input_16khz, padding_mask=None, device='cpu'):
         if self.wav2vec.config.feat_extract_norm == "layer":
@@ -112,19 +117,26 @@ class PhonemeDetector(nn.Module):
                 wav_input_16khz = wav_input_16khz * padding_mask
             c = self.wav2vec(wav_input_16khz)
 
-        x = self.upscaler(c['last_hidden_state'].transpose(1,2))
-        x = x.transpose(1,2).transpose(0,1)
-        x = F.relu(self.fc(x))
-        #x = torch.cat((-10000*torch.ones((x.shape[0], x.shape[1], 1), device=device), x), dim=-1)
+        x = c['last_hidden_state']
+
+        if self.upscale:
+            x = self.upscaler(x.transpose(1, 2))
+            x = x.transpose(1,2)
+
+        x = self.fc(x.transpose(0,1))
         x = F.log_softmax(x, dim=-1)
 
         if padding_mask is not None:
-            x_lengths = self.upscaler.get_upscaled_length(self.wav2vec._get_feat_extract_output_lengths((padding_mask).sum(-1)))
+            x_lengths = self.wav2vec._get_feat_extract_output_lengths((padding_mask).sum(-1))
+            if self.upscale:
+                x_lengths = self.upscaler.get_upscaled_length(x_lengths)
             return x, x_lengths
         return x
 
     def get_idx_in_sample(self, idx: int) -> int:
-        return self._invert_feat_extract_output_lengths(self.upscaler.invert_upscale_length(idx))
+        if self.upscale:
+            return self._invert_feat_extract_output_lengths(self.upscaler.invert_upscale_length(idx))
+        return self._invert_feat_extract_output_lengths(idx)
 
     def _invert_feat_extract_output_lengths(self, input_lengths):
         """
@@ -144,7 +156,9 @@ class PhonemeDetector(nn.Module):
 
 
     def get_sample_in_idx(self, sample_idx: int) -> int:
-        return self.upscaler.get_upscaled_length(self.wav2vec._get_feat_extract_output_lengths(sample_idx))
+        if self.upscale:
+            return self.upscaler.get_upscaled_length(self.wav2vec._get_feat_extract_output_lengths(sample_idx))
+        return self.wav2vec._get_feat_extract_output_lengths(sample_idx)
     
     def freeze_encoder(self):
         for name, param in self.wav2vec.named_parameters():

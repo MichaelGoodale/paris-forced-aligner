@@ -18,6 +18,7 @@ def add_model_args(parser: argparse.ArgumentParser):
     parser.add_argument('--wav2vec_model', type=str, help="Options are small, large, multilingual or anything listed by HuggingFace")
     parser.add_argument('--checkpoint', type=str)
     parser.add_argument('--internal_vector_dim', type=int, default=256)
+    parser.add_argument('--no_upscale', action="store_false")
 
 def add_dictionary_args(parser: argparse.ArgumentParser):
     parser.add_argument("--dictionary", default='librispeech', choices=['librispeech', 'librispeech_unstressed', 'tsv'])
@@ -43,9 +44,9 @@ def process_model_args(parser: argparse.ArgumentParser, args: argparse.Namespace
         wav2vec_model_name = wav2vec_names[args.wav2vec_model]
 
     if pretraining:
-        model = PhonemeDetector(wav2vec_model_name, 4, args.internal_vector_dim)
+        model = PhonemeDetector(wav2vec_model_name, 4, args.internal_vector_dim, upscale=args.no_upscale)
     else:
-        model = PhonemeDetector(wav2vec_model_name, vocab_size, args.internal_vector_dim)
+        model = PhonemeDetector(wav2vec_model_name, vocab_size, args.internal_vector_dim, upscale=args.no_upscale)
 
     if device != "cpu":
         model.wav2vec.cuda()
