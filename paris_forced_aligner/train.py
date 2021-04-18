@@ -222,7 +222,10 @@ class Trainer:
                             offsets["phone_start"].append(abs(a.start - r.start))
                             offsets["phone_end"].append(abs(a.end - r.end))
         for key, item in offsets.items():
-            offsets[key] = (sum(item)/len(item)) / 16 #milliseconds
+            if len(item) > 0:
+                offsets[key] = (sum(item)/len(item)) / 16 #milliseconds
+            else:
+                offsets[key] = 9999
         return offsets 
 
     def train(self, step=0):
