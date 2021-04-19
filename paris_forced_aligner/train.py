@@ -111,19 +111,10 @@ class Trainer:
 
     def prepare_ctc_batch(self, batch):
         input_wavs, padding_mask = self.prepare_audio_batch(batch)
-        transcription_lengths = torch.tensor([2*a.tensor_transcription.shape[0] for a in batch])
+        transcription_lengths = torch.tensor([a.tensor_transcription.shape[0] for a in batch])
         transcriptions = torch.zeros((len(batch), transcription_lengths.max()))
-
-        vocab_size = self.corpus.pronunciation_dictionary.vocab_size() - 1 #Subtract blank
-
-        #We're basically making it so that a sequence of 1 2 3 4
-        #becomes 1 5 2 6 3 7 4 8
-        #Where 1 5 = start 1 end 1
-        #2 6 = start 2 end 2 etc
         for i, (length, a) in enumerate(zip(transcription_lengths, batch)):
-            onset_offset_transcription = a.tensor_transcription.repeat_interleave(2)
-            onset_offset_transcription[1::2] += vocab_size - 1
-            transcriptions[i, :length] = onset_offset_transcription
+            transcriptions[i, :length] = a.tensor_transcription
         transcriptions = transcriptions.to(self.device)
         transcription_lengths = transcription_lengths.to(self.device)
         return input_wavs, padding_mask, transcriptions, transcription_lengths
@@ -211,7 +202,7 @@ class Trainer:
                 lexical_phones, words = self.corpus.pronunciation_dictionary.spell_sentence(utterance.transcription)
                 y = torch.tensor([self.corpus.pronunciation_dictionary.phonemic_mapping[x] \
                                                     for x in lexical_phones], device=self.device)
-                inference = self.forced_aligner.align_tensors(probs, y, self.corpus.pronunciation_dictionary, wav_length)
+                inference = self.forced_aligner.align_tensors(words, probs, y, self.corpus.pronunciation_dictionary, wav_length)
                 aligned_utterance = self.forced_aligner.to_utterance(inference, words, wav_length, self.corpus.pronunciation_dictionary)
 
 

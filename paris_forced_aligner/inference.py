@@ -14,55 +14,69 @@ def join_word_phones(word: List[Phone]) -> List[Phone]:
         word[i+1].start = mid_point
     return word
 
+
+def words_to_indices(words: List[str], pron_dict: PronunciationDictionary) -> List[List[int]]:
+    indices = []
+    for word in words:
+        indices.append([pron_dict.phonemic_mapping[x] for x in pron_dict.spelling(word)])
+    return indices
+
 class ForcedAligner:
 
     def __init__(self, model: PhonemeDetector, n_beams: int = 50):
         self.model = model
         self.BEAMS = n_beams
 
-    def align_tensors(self, X, y, pron_dict, wav_length, offset=0):    
+    def align_tensors(self, words, X, y, pron_dict, wav_length, offset=0):    
         vocab_size = pron_dict.vocab_size()
-        y = y.repeat_interleave(2)
-        y[1::2] += vocab_size - 1
-
-        beams = [(0, y, [], None)]
+        indices = words_to_indices(words, pron_dict)
+        #(probs, transcription_left, states_per_timestep, in_word, word_idx, char_idx)
+        beams = [(0, y, [], False, -1, 0)]
         for t in range(X.shape[0]):
             #Kinda funky candidates dict to prevent repeat paths based on prob
             #Shouldn't technically be based only on prob but likelihood is small of collisions
             candidates = {}
-            for score, transcription, states, prev_non_blank in beams:
+            for score, transcription, states, in_word, word_idx, char_idx in beams:
                 current_state = transcription[0].item()
                 p_current_state = X[t, 0, current_state].item()
-                candidates[score + p_current_state] = (transcription, states + [current_state], current_state)
+                candidates[score + p_current_state] = (transcription, states + [current_state], True, word_idx, char_idx)
 
-                if len(transcription) > 1 and prev_non_blank is not None:
+                if len(transcription) > 1 and in_word:
                     next_state = transcription[1].item()
                     p_next_state = X[t, 0, next_state].item()
-                    candidates[score + p_next_state] = (transcription[1:], states + [next_state], next_state)
+                    if char_idx == len(indices[word_idx]) - 1: #We're at the end of a word
+                        candidates[score + p_next_state] = (transcription[1:], states + [next_state], True, word_idx + 1, 0)
+                    else:
+                        candidates[score + p_next_state] = (transcription[1:], states + [next_state], True, word_idx, char_idx+1)
 
-                p_blank = X[t, 0, 0].item() 
-
-                candidates[score + 50*(p_blank)] = (transcription, states + [0], prev_non_blank)
+                if not in_word or char_idx == len(indices[word_idx]) - 1:
+                    #We can only have a blank in between words.
+                    p_blank = X[t, 0, 0].item() 
+                    candidates[score + p_blank] = (transcription, states + [0], False, word_idx + int(in_word), 0)
 
             beams = [(p, *candidates[p]) for p in sorted(candidates.keys(), reverse=True)[:self.BEAMS]]
-        _, _, states, _ = beams[0]
+        _, _, states, _, _, _ = beams[0]
 
         inference = []
         old_x = None
 
         for t, x in enumerate(states):
-            if x == 0:#Skip blanks
-                continue 
-
             if old_x != x:
-                if x < vocab_size:#This is an openining of a phone
+                if x == 0:
+                    phone = None
+                else:
                     phone = pron_dict.index_to_phone(x)
-                    start_time_16khz = int((t / X.shape[0]) * wav_length) + offset
-                else:#this is the closing of a phone
-                    end_time_16khz = int((t / X.shape[0]) * wav_length) + offset
-                    inference.append((phone, start_time_16khz, end_time_16khz))
+                time_16khz = int((t / X.shape[0]) * wav_length) + offset
+                inference.append((phone, time_16khz))
             old_x = x
 
+        for i in range(len(inference)):
+            if i < len(inference) - 1:
+                inference[i] = (inference[i][0], inference[i][1], inference[i+1][1])
+            else:
+                inference[i] = (inference[i][0], inference[i][1], wav_length)
+
+        infernce = list(filter(lambda x: x[0] is not None, inference))
         return inference
 
     def to_utterance(self, inference: List[Tuple[str, int]], words: List[str], wav_length:int, pron_dict: PronunciationDictionary) -> Utterance:
@@ -86,6 +100,6 @@ class ForcedAligner:
     def align_file(self, audio: AudioFile):
         X = self.model(audio.wav)
         y = audio.tensor_transcription
-        inference = self.align_tensors(X, y, audio.pronunciation_dictionary, audio.wav.shape[1], audio.offset)
+        inference = self.align_tensors(audio.words, X, y, audio.pronunciation_dictionary, audio.wav.shape[1], audio.offset)
         return self.to_utterance(inference, audio.words, audio.wav.shape[1], audio.pronunciation_dictionary)
 

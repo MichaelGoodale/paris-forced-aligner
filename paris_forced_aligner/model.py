@@ -104,9 +104,9 @@ class PhonemeDetector(nn.Module):
         self.upscale = upscale
         if upscale:
             self.upscaler = Upscaler(self.wav2vec.config.hidden_size, internal_vector_size)
-            self.fc = nn.Linear(internal_vector_size, 2*vocab_size - 1)
+            self.fc = nn.Linear(internal_vector_size, vocab_size)
         else:
-            self.fc = nn.Linear(self.wav2vec.config.hidden_size, 2*vocab_size - 1)
+            self.fc = nn.Linear(self.wav2vec.config.hidden_size, vocab_size)
 
 
     def forward(self, wav_input_16khz, padding_mask=None, device='cpu'):
