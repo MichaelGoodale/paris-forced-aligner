@@ -37,10 +37,9 @@ class CorpusClass():
 
 class YoutubeCorpus(CorpusClass):
 
-    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, language: str = 'en', audio_directory: Optional[str] = None, save_wavs: bool = False):
+    def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, language: str = 'en', audio_directory: Optional[str] = None):
         super().__init__(corpus_path, pronunciation_dictionary)
         self.youtube_files = []
-        self.save_wavs = save_wavs
 
         if audio_directory is None:
             self._temp_dir = tempfile.TemporaryDirectory()
@@ -81,39 +80,18 @@ class YoutubeCorpus(CorpusClass):
             captions = webvtt.read(os.path.join(self.dir, subtitle_file)).captions
             wav, sr = torchaudio.load(os.path.join(self.dir, audio))
 
-            if self.save_wavs:
-                idx_starts_ends: List[Tuple[int, int, int]] = []
-
             for i, (cap_time, cap_string) in enumerate(zip(captions[::2], captions[1::2])):
                 cap_name = subtitle_file.replace(sub_file_ending, f"_{i}")
                 transcription = cap_string.text.strip().upper()
                 if transcription == '':
                     continue
-                start = int(cap_time.start_in_seconds * 16000)
-                end = int(cap_time.end_in_seconds * 16000)
+                start = int(cap_time.start_in_seconds * sr)
+                end = int(cap_time.end_in_seconds * sr)
 
-                if self.save_wavs:
-                    idx_starts_ends.append((i, int(start / sr  * 16000), int(end / sr * 16000)))
                 try:
-                    yield AudioFile(cap_name, transcription, self.pronunciation_dictionary, wavobj=(wav[:, start:end], sr), offset=start)
+                    yield AudioFile(cap_name, transcription, self.pronunciation_dictionary, wavobj=(wav[:, start:end], sr), offset=int((start/sr)*16000))
                 except OutOfVocabularyException as e:
                     print(e)
-                    continue
-
-            if self.save_wavs:
-                with open(subtitle_file.replace(sub_file_ending, '.txt'), 'w') as f:
-                    for i, start, end in idx_starts_ends:
-                        f.write(f"{i} {start} {end}\n")
-
-    def stitch_youtube_utterances(self, audio_file_name: str, utterances: List[Utterance]):
-        index_file = audio_file_name + '.txt'
-        big_u_data = []
-        with open(index_file, 'r') as f:
-            for utterance, line in zip(utterances, f):
-                i, start, end = line.strip().split(' ')
-                utterance.offset(int(start))
-                big_u_data += utterance.data
-        return Utterance(big_u_data)
 
     def cleanup_and_recreate(self):
         self.cleanup()
@@ -321,6 +299,8 @@ class BuckeyeCorpus(CorpusClass):
                                     paris_words.append(BuckeyeCorpus.convert_to_arpabet(paris_word, word))
 
                             if len(paris_words) >= 2 and isinstance(paris_words[-1], Silence) and paris_words[-1].duration > int(0.150*16000):
+                                if paris_words[0].label == "<SIL>":
+                                    paris_words = paris_words[:1]
                                 utterance = Utterance(paris_words[:-1])
 
                                 if utterance.words != []:

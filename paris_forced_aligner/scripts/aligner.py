@@ -97,22 +97,21 @@ def align():
 
         for youtube in args.youtube:
             corpus = YoutubeCorpus(youtube, pronunciation_dictionary, language=args.youtube_lang,
-                    audio_directory=os.path.abspath(args.youtube_output_dir),
-                    save_wavs=True)
+                    audio_directory=os.path.abspath(args.youtube_output_dir))
 
             name_utt_dict = {}
 
             for audio_file in corpus:
                 utterance = forced_aligner.align_file(audio_file)
                 name = audio_file.filename.rsplit('_', 1)[0]
+                print(utterance)
                 if name not in name_utt_dict:
                     name_utt_dict[name] = [utterance]
                 else:
                     name_utt_dict[name].append(utterance)
 
             for name, utterances in name_utt_dict.items():
-                big_utterance = Utterance([d for u in sorted(utterances, key=lambda u: u.start) for d in u.data])
-                #big_utterance = corpus.stitch_youtube_utterances(name, utterances)
+                big_utterance = Utterance([d for u in sorted(filter(lambda u: u.data != [], utterances), key=lambda u: u.start) for d in u.data])
                 output_file = name + '.TextGrid' if args.save_as == 'textgrid' else '.csv'
                 if not args.overwrite and os.path.exists(output_file):
                     print(f"{output_file} already exists, pass --overwrite to overwrite")

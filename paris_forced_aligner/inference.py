@@ -7,6 +7,13 @@ from paris_forced_aligner.audio_data import AudioFile, PronunciationDictionary
 from paris_forced_aligner.phonological import Utterance, Phone, Word, Silence
 
 
+def join_word_phones(word: List[Phone]) -> List[Phone]:
+    for i in range(len(word) - 1):
+        mid_point = (word[i].end + word[i+1].start) / 2
+        word[i].end = mid_point
+        word[i+1].start = mid_point
+    return word
+
 class ForcedAligner:
 
     def __init__(self, model: PhonemeDetector, n_beams: int = 50):
@@ -33,12 +40,11 @@ class ForcedAligner:
                     p_next_state = X[t, 0, next_state].item()
                     candidates[score + p_next_state] = (transcription[1:], states + [next_state], next_state)
 
-                p_blank = X[t, 0, 0].item()
+                p_blank = X[t, 0, 0].item() 
 
-                candidates[score + p_blank] = (transcription, states + [0], prev_non_blank)
+                candidates[score + 50*(p_blank)] = (transcription, states + [0], prev_non_blank)
 
             beams = [(p, *candidates[p]) for p in sorted(candidates.keys(), reverse=True)[:self.BEAMS]]
-
         _, _, states, _ = beams[0]
 
         inference = []
@@ -66,11 +72,13 @@ class ForcedAligner:
         for i, (phone, start, end) in enumerate(inference):
             current_word.append(Phone(phone, start, end))
             if pron_dict.spelling(words[word_idx]) == [x.label for x in current_word]:
+                current_word = join_word_phones(current_word) 
                 utterance.append(Word(current_word, words[word_idx]))
                 word_idx += 1
                 current_word = []
 
         if current_word != []:
+            current_word = join_word_phones(current_word) 
             utterance.append(Word(current_word, words[word_idx]))
 
         return Utterance(utterance)
@@ -79,5 +87,5 @@ class ForcedAligner:
         X = self.model(audio.wav)
         y = audio.tensor_transcription
         inference = self.align_tensors(X, y, audio.pronunciation_dictionary, audio.wav.shape[1], audio.offset)
-        return self.to_utterance(inference, audio.words, audio.pronunciation_dictionary)
+        return self.to_utterance(inference, audio.words, audio.wav.shape[1], audio.pronunciation_dictionary)
 

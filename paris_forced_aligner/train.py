@@ -214,6 +214,7 @@ class Trainer:
                 inference = self.forced_aligner.align_tensors(probs, y, self.corpus.pronunciation_dictionary, wav_length)
                 aligned_utterance = self.forced_aligner.to_utterance(inference, words, wav_length, self.corpus.pronunciation_dictionary)
 
+
                 for aligned_word, real_word in zip(aligned_utterance.words, utterance.words):
                     offsets["word_start"].append(abs(aligned_word.start - real_word.start))
                     offsets["word_end"].append(abs(aligned_word.end - real_word.end))
