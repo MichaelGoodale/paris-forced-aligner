@@ -37,11 +37,13 @@ class ForcedAligner:
             #Shouldn't technically be based only on prob but likelihood is small of collisions
             candidates = {}
             for score, transcription, states, in_word, word_idx, char_idx in beams:
-                current_state = transcription[0].item()
-                p_current_state = X[t, 0, current_state].item()
-                candidates[score + p_current_state] = (transcription, states + [current_state], True, word_idx, char_idx)
 
-                if len(transcription) > 1 and in_word:
+                if not (not in_word and word_idx >= len(indices)): #If we haven't had a blank after the very last char
+                    current_state = transcription[0].item()
+                    p_current_state = X[t, 0, current_state].item()
+                    candidates[score + p_current_state] = (transcription, states + [current_state], True, word_idx, char_idx)
+
+                if len(transcription) > 1 and in_word and word_idx < len(indices):
                     next_state = transcription[1].item()
                     p_next_state = X[t, 0, next_state].item()
                     if char_idx == len(indices[word_idx]) - 1: #We're at the end of a word
@@ -49,7 +51,7 @@ class ForcedAligner:
                     else:
                         candidates[score + p_next_state] = (transcription[1:], states + [next_state], True, word_idx, char_idx+1)
 
-                if not in_word or char_idx == len(indices[word_idx]) - 1:
+                if not in_word or word_idx >= len(indices) or char_idx == len(indices[word_idx]) - 1:
                     #We can only have a blank in between words.
                     p_blank = X[t, 0, 0].item() 
                     candidates[score + p_blank] = (transcription, states + [0], False, word_idx + int(in_word), 0)
