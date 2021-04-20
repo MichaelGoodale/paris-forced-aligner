@@ -31,7 +31,7 @@ class ForcedAligner:
         vocab_size = pron_dict.vocab_size()
         indices = words_to_indices(words, pron_dict)
         #(probs, transcription_left, states_per_timestep, in_word, word_idx, char_idx)
-        beams = [(0, y, [], False, -1, 0)]
+        beams = [(0, y, [], False, 0, 0)]
         for t in range(X.shape[0]):
             #Kinda funky candidates dict to prevent repeat paths based on prob
             #Shouldn't technically be based only on prob but likelihood is small of collisions
@@ -54,7 +54,10 @@ class ForcedAligner:
                 if not in_word or word_idx >= len(indices) or char_idx == len(indices[word_idx]) - 1:
                     #We can only have a blank in between words.
                     p_blank = X[t, 0, 0].item() 
-                    candidates[score + p_blank] = (transcription, states + [0], False, word_idx + int(in_word), 0)
+                    if in_word and len(transcription) > 1:
+                        candidates[score + p_blank] = (transcription[1:], states + [0], False, word_idx + 1, 0)
+                    else:
+                        candidates[score + p_blank] = (transcription, states + [0], False, word_idx, char_idx)
 
             beams = [(p, *candidates[p]) for p in sorted(candidates.keys(), reverse=True)[:self.BEAMS]]
         _, _, states, _, _, _ = beams[0]
