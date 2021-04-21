@@ -38,6 +38,9 @@ class ForcedAligner:
             candidates = {}
             for score, transcription, states, in_word, word_idx, char_idx in beams:
 
+
+                p_blank = X[t, 0, 0].item() 
+
                 if not (not in_word and word_idx >= len(indices)): #If we haven't had a blank after the very last char
                     current_state = transcription[0].item()
                     p_current_state = X[t, 0, current_state].item()
@@ -46,15 +49,22 @@ class ForcedAligner:
                 if len(transcription) > 1 and in_word and word_idx < len(indices):
                     next_state = transcription[1].item()
                     p_next_state = X[t, 0, next_state].item()
-                    if char_idx == len(indices[word_idx]) - 1: #We're at the end of a word
-                        candidates[score + p_next_state] = (transcription[1:], states + [next_state], True, word_idx + 1, 0)
+                    if next_state != current_state:
+                        if char_idx == len(indices[word_idx]) - 1: #We're at the end of a word
+                            candidates[score + p_next_state] = (transcription[1:], states + [next_state], True, word_idx + 1, 0)
+                        else:
+                            candidates[score + p_next_state] = (transcription[1:], states + [next_state], True, word_idx, char_idx+1)
                     else:
-                        candidates[score + p_next_state] = (transcription[1:], states + [next_state], True, word_idx, char_idx+1)
+                        #If we have two consecutive characters we need to force a blank
+                        if char_idx == len(indices[word_idx]) - 1: #We're at the end of a word
+                            candidates[score + p_blank] = (transcription[1:], states + [0], True, word_idx + 1, 0)
+                        else:
+                            candidates[score + p_blank] = (transcription[1:], states + [0], True, word_idx, char_idx+1)
+
 
                 if not in_word or word_idx >= len(indices) or char_idx == len(indices[word_idx]) - 1:
                     #We can only have a blank in between words.
-                    p_blank = X[t, 0, 0].item() 
-                    if in_word and len(transcription) > 1:
+                    if in_word:
                         candidates[score + p_blank] = (transcription[1:], states + [0], False, word_idx + 1, 0)
                     else:
                         candidates[score + p_blank] = (transcription, states + [0], False, word_idx, char_idx)
@@ -79,9 +89,10 @@ class ForcedAligner:
             if i < len(inference) - 1:
                 inference[i] = (inference[i][0], inference[i][1], inference[i+1][1])
             else:
-                inference[i] = (inference[i][0], inference[i][1], wav_length)
+                inference[i] = (inference[i][0], inference[i][1], wav_length + offset)
 
-        infernce = list(filter(lambda x: x[0] is not None, inference))
+        inference = list(filter(lambda x: x[0] is not None, inference))
+
         return inference
 
     def to_utterance(self, inference: List[Tuple[str, int]], words: List[str], wav_length:int, pron_dict: PronunciationDictionary) -> Utterance:

@@ -104,7 +104,6 @@ def align():
             for audio_file in corpus:
                 utterance = forced_aligner.align_file(audio_file)
                 name = audio_file.filename.rsplit('_', 1)[0]
-                print(utterance)
                 if name not in name_utt_dict:
                     name_utt_dict[name] = [utterance]
                 else:
