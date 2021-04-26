@@ -9,7 +9,6 @@ from torch.nn import CTCLoss, NLLLoss
 import torch.nn.functional as F
 
 from paris_forced_aligner.corpus import LibrispeechCorpus, CorpusClass
-from paris_forced_aligner.loss import ctc_ent_loss_log
 from paris_forced_aligner.model import PhonemeDetector
 from paris_forced_aligner.inference import ForcedAligner
 
@@ -54,8 +53,7 @@ class Trainer:
         if self.corpus.return_gold_labels:
             self.loss_fn = NLLLoss()
         else:
-            #self.loss_fn = CTCLoss()
-            self.loss_fn = partial(ctc_ent_loss_log, device=self.device)
+            self.loss_fn = CTCLoss()
         self.optimizer = torch.optim.Adam(model.parameters(), lr=lr)
         self.memory_max_length = 300000
         self.epoch = 0

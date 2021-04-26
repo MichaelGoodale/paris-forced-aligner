@@ -70,7 +70,7 @@ class UpscaledWav2Vec(nn.Module):
 class Upscaler(nn.Module):
     def __init__(self, input_dim, internal_dim):
         super().__init__()
-        self.time_transform = nn.Upsample(scale_factor=4, mode='linear', align_corners=False)
+        self.time_transform = nn.Upsample(scale_factor=2, mode='linear', align_corners=False)
         self.conv1 = nn.Conv1d(input_dim, internal_dim, 3, padding=1)
         self.batch_norm1 = nn.InstanceNorm1d(internal_dim)
 
@@ -80,10 +80,10 @@ class Upscaler(nn.Module):
         return x
 
     def get_upscaled_length(self, length: int) -> int:
-        return 4*length
+        return 2*length
 
     def invert_upscale_length(self, length: int) -> int:
-        return idx / 4
+        return idx // 2
 
 class RawPhonemeDetector(nn.Module):
     def __init__(self, filepath, vocab_size, internal_vector_size=256):
