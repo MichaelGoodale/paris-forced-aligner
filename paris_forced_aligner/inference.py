@@ -113,8 +113,34 @@ class ForcedAligner:
 
         return Utterance(utterance)
 
+    def ensemble_inference(self, audio: AudioFile, n: int):
+        if n == 1:
+            return self.model(audio.wav)
+        if 320 % n != 0:
+            raise ValueError(f"Invalid value of n={n}, 50%n must be 0")
+        offset = 320 // n
+
+        batched_wavs = torch.ones(n, audio.wav.shape[-1])
+        padding_mask = torch.zeros(n, audio.wav.shape[-1])
+
+        for i in range(n):
+            start_at = i*offset
+            length = audio.wav.shape[-1] - start_at
+            batched_wavs[i, :length] = audio.wav[0, start_at:]
+            padding_mask[i, :length] = 1
+
+        X, lengths = self.model(batched_wavs, padding_mask=padding_mask)
+        X = X.repeat_interleave(n, dim=0)
+        for i in range(n):
+            if i == 0:
+                continue
+            X[-i:, i, :] = -9999
+            X[:, i, :] = X[:, i, :].roll(i, dims=0)
+        X = X.sum(dim=1).unsqueeze(1)
+        return X
+
     def align_file(self, audio: AudioFile):
-        X = self.model(audio.wav)
+        X = self.ensemble_inference(audio, 1)
         y = audio.tensor_transcription
         inference = self.align_tensors(audio.words, X, y, audio.pronunciation_dictionary, audio.wav.shape[1], audio.offset)
         return self.to_utterance(inference, audio.words, audio.wav.shape[1], audio.pronunciation_dictionary)

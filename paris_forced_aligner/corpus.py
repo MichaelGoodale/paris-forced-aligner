@@ -251,6 +251,7 @@ class BuckeyeCorpus(CorpusClass):
     def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary, return_gold_labels: bool = False, relabel: bool = False):
         super().__init__(corpus_path, pronunciation_dictionary, return_gold_labels)
         self.relabel = relabel
+        self.random = random.Random(1337)
 
     def _extract_from_zip(self, zip_dir, track_name, speaker_name):
         with ZipFile(zip_dir.open(f"{speaker_name}/{track_name}.zip")) as sound_dir:
@@ -276,16 +277,15 @@ class BuckeyeCorpus(CorpusClass):
     def extract_files(self, return_gold_labels):
         for d, s_d, files in os.walk(self.corpus_path):
             speaker_files = list(filter(lambda x: x.endswith('.zip'), files))
-            random.shuffle(speaker_files)
+            self.random.shuffle(speaker_files)
             for f in speaker_files:
                 zip_path = os.path.join(d, f)
                 speaker = buckeye.Speaker.from_zip(zip_path)
-
                 with ZipFile(zip_path) as zip_dir:
                     for track in speaker:
                         paris_words = []
                         wav, sr = self._extract_from_zip(zip_dir, track.name, speaker.name)
-
+                        print(track.name, speaker.name)
                         for word in track.words:
                             if isinstance(word, buckeye.containers.Pause):
                                 if len(paris_words) >= 1 and isinstance(paris_words[-1], Silence):

@@ -35,7 +35,7 @@ def evaluate():
 
         writer.writeheader()
 
-        for audio_file, gold_utterance in BuckeyeCorpus(args.buckeye_dir, pronunciation_dictionary, return_gold_labels=True):
+        for i, (audio_file, gold_utterance) in enumerate(BuckeyeCorpus(args.buckeye_dir, pronunciation_dictionary, return_gold_labels=True)):
             aligned_utterance = forced_aligner.align_file(audio_file)
             for aligned_word, gold_word in zip(aligned_utterance.words, gold_utterance.words):
                 word_mean_start_difference = (abs(aligned_word.start - gold_word.start)/16000 + n_word*word_mean_start_difference) / (n_word+1)
@@ -51,9 +51,9 @@ def evaluate():
                     writer.writerow({'transcript': gold_phone.label, 'aligned_transcript': aligned_phone.label, 'word': 0, 'phone': 1, \
                             'gold_start': gold_phone.start, 'aligned_start': aligned_phone.start, 'gold_end': gold_phone.end, 'aligned_end': aligned_phone.end})
                     n_phone += 1
-
-            print(f"Phone start {phone_mean_start_difference}, Phone end {phone_mean_end_difference}")
-            print(f"Word start {word_mean_start_difference}, Word end {word_mean_end_difference}")
+            if i % 100 == 0:
+                print(f"Phone start {phone_mean_start_difference}, Phone end {phone_mean_end_difference}")
+                print(f"Word start {word_mean_start_difference}, Word end {word_mean_end_difference}")
     
 
 if __name__ == "__main__":
