@@ -92,17 +92,22 @@ class RawPhonemeDetector(nn.Module):
 
 
 class PhonemeDetector(nn.Module):
-    def __init__(self, filepath, vocab_size, internal_vector_size=128, upscale=True):
+    def __init__(self, filepath, vocab_size=100, internal_vector_size=128, upscale=True, multilingual=False):
         super().__init__()
         self.filepath = filepath
         self.vocab_size = vocab_size
         self.wav2vec = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base-960h")#, apply_spec_augment=False)
         self.upscale = upscale
+        fc_input_size = self.wav2vec.config.hidden_size
         if upscale:
             self.upscaler = Upscaler(self.wav2vec.config.hidden_size, internal_vector_size)
-            self.fc = nn.Linear(internal_vector_size, vocab_size)
+            fc_input_size = internal_vector_size
+
+        if multilingual:
+            self.fc = nn.Linear(fc_input_size, vocab_size)
+
         else:
-            self.fc = nn.Linear(self.wav2vec.config.hidden_size, vocab_size)
+            self.fc = nn.Linear(fc_input_size, vocab_size)
 
 
     def forward(self, wav_input_16khz, padding_mask=None, device='cpu'):

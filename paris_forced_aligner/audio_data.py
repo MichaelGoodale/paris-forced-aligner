@@ -236,12 +236,30 @@ class PronunciationDictionary:
 
     def split_sentence(self, sentence:str) -> List[str]:
         return_sentence = []
-        for word in sentence.replace('-', ' ').split():
-            if word.isdigit():
+        sentence = sentence.replace('-', ' ')
+        for word in sentence.split():
+            if word in self.lexicon:
+                return_sentence.append(word.upper())
+            elif word.isdigit():
                 word = num2words(int(word), lang=self.lang).replace('-', ' ').upper().split(' ')
                 return_sentence += word
+            elif '\'' in word:
+                x = word.split('\'')
+                if len(x) == 2:
+                    prefix, suffix = (x[0], x[1])
+                    if prefix + '\'' in self.lexicon:
+                        return_sentence.append(prefix.upper() + '\'')
+                        return_sentence.append(suffix.upper())
+                    elif '\'' + suffix in self.lexicon:
+                        return_sentence.append(prefix.upper())
+                        return_sentence.append('\'' + suffix.upper())
+                    else:
+                        return_sentence.append(word.upper())
+                else:
+                    return_sentence.append(word.upper())
             else:
                 return_sentence.append(word.upper())
+                        
         return return_sentence
 
     def spell_sentence(self, sentence: str, return_words: bool = True):
@@ -261,7 +279,6 @@ class PronunciationDictionary:
                 raise OutOfVocabularyException(f"{word} is not present in the lexicon")
             self.add_G2P_spelling(word)
         return self.lexicon[word]
-
 
 class LibrispeechDictionary(PronunciationDictionary):
     LIBRISPEECH_URL = 'https://www.openslr.org/resources/11/librispeech-lexicon.txt'
@@ -299,7 +316,6 @@ class LibrispeechDictionary(PronunciationDictionary):
 class TSVDictionary(PronunciationDictionary):
     def __init__(self, lexicon_path: str, seperator: str='\t', \
             phone_to_phoneme: Optional[Mapping[str, str]] = None, **kwargs):
-        super().__init__(**kwargs)
         self.lexicon_path = lexicon_path
         self.seperator = seperator
         if phone_to_phoneme is not None:
@@ -308,12 +324,15 @@ class TSVDictionary(PronunciationDictionary):
         else:
             self.phone_to_phoneme: Mapping[str, str] = {}
             self.already_ipa = True
+        super().__init__(**kwargs)
 
     def load_lexicon(self):
         with open(self.lexicon_path) as f:
             for line in f:
                 word, pronunciation = line.strip().split(self.seperator, 1)
-                self.lexicon[word] = pronunciation.split(' ')
+                word = word.upper()
+                if word not in self.lexicon:
+                    self.lexicon[word] = pronunciation.split(' ')
                 for phone in self.lexicon[word]:
                     self.phonemic_inventory.add(phone)
                     if self.already_ipa:
@@ -321,6 +340,16 @@ class TSVDictionary(PronunciationDictionary):
 
                 for letter in word:
                     self.graphemic_inventory.add(letter)
+
+class MultiLanguagePronunciationDictionary:
+    def __init__(self, pronunciation_dictionaries: List[PronunciationDictionary]):
+        self.dictionaries = {x.lang: x for x in pronunciation_dictionaries}
+
+    def spell_sentence(self, language:str, sentence: str, return_words: bool = True):
+        return self.pronunciation_dictionaries[language].spell_sentence(sentence, return_words=return_words)
+
+    def spelling(self, language:str, word: str) -> List[str]:
+        return self.pronunciation_dictionaries[language].spelling(word)
 
 class AudioFile:
     def __init__(self, filename: str, transcription: str,

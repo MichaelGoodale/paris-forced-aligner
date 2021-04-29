@@ -50,3 +50,153 @@ arpabet_to_ipa = {
 "Y": "j",
 "Z": "z",
 "ZH": "ʒ"}
+
+CONSONANT_PLACES = ["bilabial", "labio-dental", "dental", "alveolar", "post-alveolar", "retroflex", "palatal", "velar", "uvular", "epi-glottal", "glottal", "co-articulated"]
+CONSONANT_MANNERS = ["nasal", "plosive", "sibilant", "fricative", "affricate", "approximant", "tap", "trill", "lateral fricative", "lateral approximant", "lateral tap"]
+CONSONANT_NON_PULMONIC = ["ejective", "implosive", "click"]
+CONSONANT_VOWEL = ["consonant", "vowel"]
+VOICING = ["voiced", "unvoiced"]
+VOWEL_HEIGHT = ["high", "near-high", "high-mid", "mid", "low-mid", "near-low", "low"]
+VOWEL_BACKNESS = ["front", "central", "back"]
+VOWEL_ROUND = ["round", "unround"]
+
+CONSONANT_PLACES_IDX = {x:i+1 for i, x in enumerate(CONSONANT_PLACES)}
+CONSONANT_MANNERS_IDX = {x:i+1 for i, x in enumerate(CONSONANT_MANNERS)}
+CONSONANT_NON_PULMONIC_IDX = {x:i+1 for i, x in enumerate(CONSONANT_PLACES)}
+CONSONANT_VOWEL_IDX = {x:i for i, x in enumerate(CONSONANT_VOWEL)}
+VOICING_IDX = {x:i for i, x in enumerate(VOICING)}
+
+VOWEL_HEIGHT_IDX = {x:i+1 for i, x in enumerate(VOWEL_HEIGHT)}
+VOWEL_BACKNESS_IDX = {x:i+1 for i, x in enumerate(VOWEL_BACKNESS)}
+VOWEL_ROUND_IDX = {x:i+1 for i, x in enumerate(VOWEL_ROUND)}
+
+VOCAB_SIZES = {"consonant_places": len(CONSONANT_PLACES)+1,
+        "consonant_manners": len(CONSONANT_MANNERS)+1,
+        "consonant_non_pulmonic": len(CONSONANT_NON_PULMONIC)+1,
+        "consonant_vowel": len(CONSONANT_VOWEL),
+        "voicing": len(VOICING),
+        "vowel_height": len(VOWEL_HEIGHT) + 1,
+        "vowel_backness": len(VOWEL_BACKNESS) + 1,
+        "vowel_round": len(VOWEL_ROUND) + 1}
+
+
+
+CHARACTER_MAPPINGS = {
+        "m": ["bilabial", "nasal", 0, "consonant", "voiced", 0, 0, 0],
+        "p": ["bilabial", "plosive", 0, "consonant", "unvoiced", 0, 0, 0],
+        "b": ["bilabial", "plosive", 0, "consonant", "voiced", 0, 0, 0],
+        "ɸ": ["bilabial", "fricative", 0, "consonant", "unvoiced", 0, 0, 0],
+        "β": ["bilabial", "fricative", 0, "consonant", "voiced", 0, 0, 0],
+        "ⱱ̟": ["bilabial", "tap", 0, "consonant", "voiced", 0, 0, 0],
+        "ʙ̥": ["bilabial", "trill", 0, "consonant", "unvoiced", 0, 0, 0],
+        "ʙ": ["bilabial", "trill", 0, "consonant", "voiced", 0, 0, 0],
+        "ɱ": ["labio-dental", "nasal", 0, "consonant", "voiced", 0, 0, 0],
+        "p̪": ["labio-dental", "plosive", 0, "consonant", "unvoiced", 0, 0, 0],
+        "b̪": ["labio-dental", "plosive", 0, "consonant", "voiced", 0, 0, 0],
+        "f": ["labio-dental", "fricative", 0, "consonant", "unvoiced", 0, 0, 0],
+        "v": ["labio-dental", "fricative", 0, "consonant", "voiced", 0, 0, 0],
+        "ʋ": ["labio-dental", "approximant", 0, "consonant", "voiced", 0, 0, 0],
+        "ⱱ": ["labio-dental", "tap", 0, "consonant", "voiced", 0, 0, 0],
+        "n̥": ["alveolar", "nasal", 0, "consonant", "unvoiced", 0, 0, 0],
+        "n": ["alveolar", "nasal", 0, "consonant", "voiced", 0, 0, 0],
+        "t": ["alveolar", "plosive", 0, "consonant", "unvoiced", 0, 0, 0],
+        "d": ["alveolar", "plosive", 0, "consonant", "voiced", 0, 0, 0],
+        "s": ["alveolar", "sibilant", 0, "consonant", "unvoiced", 0, 0, 0],
+        "z": ["alveolar", "sibilant", 0, "consonant", "voiced", 0, 0, 0],
+        "ʃ": ["post-alveolar", "sibilant", 0, "consonant", "unvoiced", 0, 0, 0],
+        "ʒ": ["post-alveolar", "sibilant", 0, "consonant", "voiced", 0, 0, 0],
+        "θ": ["dental", "fricative", 0, "consonant", "unvoiced", 0, 0, 0],
+        "ð": ["dental", "fricative", 0, "consonant", "voiced", 0, 0, 0],
+        "ɹ": ["alveolar", "approximant", 0, "consonant", "voiced", 0, 0, 0],
+        "ɾ̥": ["alveolar", "tap", 0, "consonant", "unvoiced", 0, 0, 0],
+        "ɾ": ["alveolar", "tap", 0, "consonant", "voiced", 0, 0, 0],
+        "r̥": ["alveolar", "trill", 0, "consonant", "unvoiced", 0, 0, 0],
+        "r": ["alveolar", "trill", 0, "consonant", "voiced", 0, 0, 0],
+        "ɬ": ["alveolar", "lateral fricative", 0, "consonant", "unvoiced", 0, 0, 0],
+        "ɮ": ["alveolar", "lateral fricative", 0, "consonant", "voiced", 0, 0, 0],   	
+        "l": ["alveolar", "lateral approximant", 0, "consonant", "unvoiced", 0, 0, 0],
+        "ɺ̥": ["alveolar", "lateral tap", 0, "consonant", "unvoiced", 0, 0, 0],
+        "ɺ": ["alveolar", "lateral tap", 0, "consonant", "voiced", 0, 0, 0],
+        "ɳ̊": ["retroflex", "nasal", 0, "consonant", "unvoiced", 0, 0, 0],
+        "ɳ": ["retroflex", "nasal", 0, "consonant", "voiced", 0, 0, 0],
+        "ʈ": ["retroflex", "plosive", 0, "consonant", "unvoiced", 0, 0, 0],
+        "ɖ": ["retroflex", "plosive", 0, "consonant", "voiced", 0, 0, 0],
+        "ʂ": ["retroflex", "sibilant", 0, "consonant", "unvoiced", 0, 0, 0],
+        "ʐ": ["retroflex", "sibilant", 0, "consonant", "voiced", 0, 0, 0],
+        "ɻ": ["retroflex", "approximant", 0, "consonant", "voiced", 0, 0, 0],
+        "ɭ": ["retroflex", "lateral approximant", 0, "consonant", "voiced", 0, 0, 0],
+        "ɭ̥̆": ["retroflex", "lateral tap", 0, "consonant", "unvoiced", 0, 0, 0],
+        "ɭ̆": ["retroflex", "lateral tap", 0, "consonant", "voiced", 0, 0, 0],
+        "ɲ̊": ["palatal", "nasal", 0, "consonant", "unvoiced", 0, 0, 0],
+        "ɲ": ["palatal", "nasal", 0, "consonant", "voiced", 0, 0, 0],
+        "c": ["palatal", "plosive", 0, "consonant", "unvoiced", 0, 0, 0],
+        "ɟ": ["palatal", "plosive", 0, "consonant", "voiced", 0, 0, 0],
+        "ɕ": ["palatal", "sibilant", 0, "consonant", "unvoiced", 0, 0, 0],
+        "ʑ": ["palatal", "sibilant", 0, "consonant", "voiced", 0, 0, 0],
+        "ç": ["palatal", "fricative", 0, "consonant", "unvoiced", 0, 0, 0],
+        "ʝ": ["palatal", "fricative", 0, "consonant", "voiced", 0, 0, 0],
+        "j": ["palatal", "approximant", 0, "consonant", "voiced", 0, 0, 0],
+        "ʎ": ["palatal", "lateral approximant", 0, "consonant", "voiced", 0, 0, 0],
+        "ŋ̊": ["velar", "nasal", 0, "consonant", "unvoiced", 0, 0, 0],
+        "ŋ": ["velar", "nasal", 0, "consonant", "voiced", 0, 0, 0], 	
+        "k": ["velar", "plosive", 0, "consonant", "unvoiced", 0, 0, 0],
+        "g": ["velar", "plosive", 0, "consonant", "voiced", 0, 0, 0],
+        "x": ["velar", "fricative", 0, "consonant", "unvoiced", 0, 0, 0],
+        "ɣ": ["velar", "fricative", 0, "consonant", "voiced", 0, 0, 0],
+        "ɰ": ["velar", "approximant", 0, "consonant", "voiced", 0, 0, 0],
+        "ɴ": ["uvular", "nasal", 0, "consonant", "voiced", 0, 0, 0], 	
+        "q": ["uvular", "plosive", 0, "consonant", "unvoiced", 0, 0, 0],
+        "ɢ": ["uvular", "plosive", 0, "consonant", "voiced", 0, 0, 0],
+        "χ": ["uvular", "fricative", 0, "consonant", "unvoiced", 0, 0, 0],
+        "ʁ": ["uvular", "fricative", 0, "consonant", "voiced", 0, 0, 0],
+        "ɢ̆": ["uvular", "tap", 0, "consonant", "voiced", 0, 0, 0],
+        "ʀ̥": ["uvular", "fricative", 0, "consonant", "unvoiced", 0, 0, 0],	
+        "ʀ": ["uvular", "fricative", 0, "consonant", "voiced", 0, 0, 0],
+        "ʡ": ["epi-glottal", "plosive", 0, "consonant", "unvoiced", 0, 0, 0],
+        "ħ": ["epi-glottal", "fricative", 0, "consonant", "unvoiced", 0, 0, 0],
+        "ʕ": ["epi-glottal", "fricative", 0, "consonant", "voiced", 0, 0, 0],
+        "ʡ̆": ["epi-glottal", "tap", 0, "consonant", "voiced", 0, 0, 0],
+        "ʜ": ["epi-glottal", "trill", 0, "consonant", "unvoiced", 0, 0, 0],
+        "ʢ": ["epi-glottal", "trill", 0, "consonant", "voiced", 0, 0, 0],       
+        "ʔ": ["glottal", "fricative", 0, "consonant", "unvoiced", 0, 0, 0],
+        "h": ["glottal", "fricative", 0, "consonant", "unvoiced", 0, 0, 0],
+        "ɦ": ["glottal", "fricative", 0, "consonant", "voiced", 0, 0, 0],       
+        "ʔ̞": ["glottal", "approximant", 0, "consonant", "voiced", 0, 0, 0],       
+        "i": [0, 0, 0, "vowel", "voiced", "high", "front", "unround"],
+        "y": [0, 0, 0, "vowel", "voiced", "high", "front", "round"],
+        "ɨ": [0, 0, 0, "vowel", "voiced", "high", "central", "unround"],
+        "ʉ": [0, 0, 0, "vowel", "voiced", "high", "central", "round"],
+        "ɯ": [0, 0, 0, "vowel", "voiced", "high", "back", "unround"],
+        "u": [0, 0, 0, "vowel", "voiced", "high", "back", "round"],
+        "ɪ": [0, 0, 0, "vowel", "voiced", "near-high", "front", "unround"],
+        "ʏ": [0, 0, 0, "vowel", "voiced", "near-high", "front", "round"],
+        "ʊ": [0, 0, 0, "vowel", "voiced", "near-high", "back", "round"],
+        "e": [0, 0, 0, "vowel", "voiced", "mid-high", "front", "unround"],
+        "ø": [0, 0, 0, "vowel", "voiced", "mid-high", "front", "round"],
+        "ɘ": [0, 0, 0, "vowel", "voiced", "mid-high", "central", "unround"],
+        "ɵ": [0, 0, 0, "vowel", "voiced", "mid-high", "central", "round"],
+        "ɤ": [0, 0, 0, "vowel", "voiced", "mid-high", "back", "unround"],
+        "o": [0, 0, 0, "vowel", "voiced", "mid-high", "back", "round"],
+        "e̞": [0, 0, 0, "vowel", "voiced", "mid", "front", "unround"],
+        "ø̞": [0, 0, 0, "vowel", "voiced", "mid", "front", "round"],
+        "ə": [0, 0, 0, "vowel", "voiced", "mid", "central", "unround"],
+        "ɤ̞": [0, 0, 0, "vowel", "voiced", "mid", "back", "unround"],
+        "o̞": [0, 0, 0, "vowel", "voiced", "mid", "back", "round"],
+        "ɛ": [0, 0, 0, "vowel", "voiced", "low-mid", "front", "unround"],
+        "œ": [0, 0, 0, "vowel", "voiced", "low-mid", "front", "round"],
+        "ɜ": [0, 0, 0, "vowel", "voiced", "low-mid", "central", "unround"],
+        "ɞ": [0, 0, 0, "vowel", "voiced", "low-mid", "central", "round"],
+        "ʌ": [0, 0, 0, "vowel", "voiced", "low-mid", "back", "unround"],
+        "ɔ": [0, 0, 0, "vowel", "voiced", "low-mid", "back", "round"],
+        "æ": [0, 0, 0, "vowel", "voiced", "near-low", "front", "unround"],
+        "ɐ": [0, 0, 0, "vowel", "voiced", "near-low", "central", "unround"],
+        "a": [0, 0, 0, "vowel", "voiced", "low", "front", "unround"],
+        "ɶ": [0, 0, 0, "vowel", "voiced", "low", "front", "round"],
+        "ä": [0, 0, 0, "vowel", "voiced", "low", "central", "unround"],
+        "ɑ": [0, 0, 0, "vowel", "voiced", "low", "back", "unround"],
+        "ɒ": [0, 0, 0, "vowel", "voiced", "low", "back", "round"]
+}
+IDX_ORDERED = (CONSONANT_PLACES_IDX, CONSONANT_MANNERS_IDX, CONSONANT_NON_PULMONIC_IDX, CONSONANT_VOWEL_IDX, VOICING_IDX, VOWEL_HEIGHT_IDX, VOWEL_BACKNESS_IDX, VOWEL_ROUND_IDX)
+
+def ipa_to_feature_vector(character: str):
+    return [d[x] if x != 0 else 0 for d, x in zip(IDX_ORDERED, CHARACTER_MAPPINGS[character])]
