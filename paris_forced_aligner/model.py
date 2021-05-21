@@ -6,6 +6,8 @@ from torch import nn
 import torch.nn.functional as F
 from transformers import Wav2Vec2Processor, Wav2Vec2Model
 
+from ipa_data import VOCAB_SIZES
+
 # Source: https://pytorch.org/tutorials/beginner/transformer_tutorial
 class PositionalEncoding(nn.Module):
 
@@ -98,14 +100,15 @@ class PhonemeDetector(nn.Module):
         self.vocab_size = vocab_size
         self.wav2vec = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base-960h")#, apply_spec_augment=False)
         self.upscale = upscale
+        self.multilingual = multilingual
         fc_input_size = self.wav2vec.config.hidden_size
         if upscale:
             self.upscaler = Upscaler(self.wav2vec.config.hidden_size, internal_vector_size)
             fc_input_size = internal_vector_size
 
-        if multilingual:
-            self.fc = nn.Linear(fc_input_size, vocab_size)
-
+        if self.multilingual:
+            self.fcs = {k: nn.Linear(fc_input_size, v) for \
+                    k, v in VOCAB_SIZES.items()}
         else:
             self.fc = nn.Linear(fc_input_size, vocab_size)
 
@@ -124,15 +127,22 @@ class PhonemeDetector(nn.Module):
             x = self.upscaler(x.transpose(1, 2))
             x = x.transpose(1,2)
 
-        x = self.fc(x.transpose(0,1))
-        x = F.log_softmax(x, dim=-1)
+        x = x.transpose(0, 1)
+
+        if self.multilingual:
+            c = {}
+            for name, fc in self.fcs.items(): 
+                c[name] = F.log_softmax(fc(x), dim=-1)
+        else:
+            x = self.fc(x)
+            c = F.log_softmax(x, dim=-1)
 
         if padding_mask is not None:
             x_lengths = self.wav2vec._get_feat_extract_output_lengths((padding_mask).sum(-1))
             if self.upscale:
                 x_lengths = self.upscaler.get_upscaled_length(x_lengths)
-            return x, x_lengths
-        return x
+            return c, x_lengths
+        return c
 
     def get_idx_in_sample(self, idx: int) -> int:
         if self.upscale:

@@ -159,6 +159,10 @@ class Trainer:
             X, transcriptions_mat = self.prepare_for_cross_entropy(transcriptions, X, X_lengths)
             return self.loss_fn(X, transcriptions_mat) / self.accumulate_steps
         # CTC Loss 
+        if self.model.multilingual:
+            pass
+            # CONVERT FROM IPA CHAR to FEATURE VEC
+            # CONVERT FROM FEATURE VEC to COMBINED 
         return self.loss_fn(X, transcriptions, X_lengths, transcription_lengths) / self.accumulate_steps
 
     def update_progress_bar(self, prefix_string, postfix_stats):
