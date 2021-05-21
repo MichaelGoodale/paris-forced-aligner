@@ -7,7 +7,7 @@ from paris_forced_aligner.scripts.utils import process_model_args, add_model_arg
 from paris_forced_aligner.inference import ForcedAligner
 from paris_forced_aligner.phonological import Utterance
 from paris_forced_aligner.corpus import LibrispeechCorpus, YoutubeCorpus
-from paris_forced_aligner.audio_data import AudioFile, LibrispeechDictionary
+from paris_forced_aligner.pronunciation import AudioFile, LibrispeechDictionary
 
 def read_file_list(path):
     files = []

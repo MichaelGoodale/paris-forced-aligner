@@ -3,7 +3,7 @@ from typing import List, Tuple
 import torch
 
 from paris_forced_aligner.model import PhonemeDetector
-from paris_forced_aligner.audio_data import AudioFile, PronunciationDictionary
+from paris_forced_aligner.pronunciation import AudioFile, PronunciationDictionary
 from paris_forced_aligner.phonological import Utterance, Phone, Word, Silence
 
 

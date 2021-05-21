@@ -16,7 +16,7 @@ import webvtt
 import torchaudio
 import tempfile
 
-from paris_forced_aligner.audio_data import LibrispeechDictionary, AudioFile, OutOfVocabularyException, PronunciationDictionary
+from paris_forced_aligner.pronunciation import LibrispeechDictionary, AudioFile, OutOfVocabularyException, PronunciationDictionary
 from paris_forced_aligner.phonological import Utterance, Silence, Word, Phone
 
 

@@ -6,7 +6,6 @@ from typing import Union, BinaryIO, Optional, Mapping, List, Set, Tuple
 import torch
 import torchaudio
 
-from torchaudio.transforms import Resample
 from torch import Tensor
 
 from num2words import num2words
@@ -15,7 +14,6 @@ from jiwer import wer
 
 from tqdm.autonotebook import tqdm
 
-from paris_forced_aligner.utils import data_directory, download_data_file
 from paris_forced_aligner.ipa_data import arpabet_to_ipa
 from paris_forced_aligner.phonological import Utterance
 from paris_forced_aligner.model import G2PModel
@@ -280,67 +278,6 @@ class PronunciationDictionary:
             self.add_G2P_spelling(word)
         return self.lexicon[word]
 
-class LibrispeechDictionary(PronunciationDictionary):
-    LIBRISPEECH_URL = 'https://www.openslr.org/resources/11/librispeech-lexicon.txt'
-    def __init__(self, remove_stress=False, **kwargs):
-        self.remove_stress = remove_stress
-        self.get_lexicon_file()
-        super().__init__(**kwargs)
-
-    def get_lexicon_file(self):
-        self.lexicon_path = os.path.join(data_directory, 'librispeech-lexicon.txt')
-        if not os.path.exists(self.lexicon_path):
-            download_data_file(LibrispeechDictionary.LIBRISPEECH_URL, self.lexicon_path)
-
-    def get_word_and_pronunciation(self, line):
-        word, pronunciation = re.split(r'\s+', line.strip(), maxsplit=1)
-        if self.remove_stress:
-            pronunciation = re.sub(r'[1-9]+', '', pronunciation)
-            pronunciation = re.sub(r' \w+0', ' AX', pronunciation)
-        return word, pronunciation.split(' ')
-
-
-    def load_lexicon(self):
-        self.phone_to_phoneme: Mapping[str, str] = arpabet_to_ipa
-
-        with open(self.lexicon_path) as f:
-            for line in f:
-                word, pronunciation = self.get_word_and_pronunciation(line)
-                self.lexicon[word] = pronunciation
-                for phone in self.lexicon[word]:
-                    self.phonemic_inventory.add(phone)
-
-                for letter in word:
-                    self.graphemic_inventory.add(letter)
-
-class TSVDictionary(PronunciationDictionary):
-    def __init__(self, lexicon_path: str, seperator: str='\t', \
-            phone_to_phoneme: Optional[Mapping[str, str]] = None, **kwargs):
-        self.lexicon_path = lexicon_path
-        self.seperator = seperator
-        if phone_to_phoneme is not None:
-            self.phone_to_phoneme = phone_to_phoneme
-            self.already_ipa = False
-        else:
-            self.phone_to_phoneme: Mapping[str, str] = {}
-            self.already_ipa = True
-        super().__init__(**kwargs)
-
-    def load_lexicon(self):
-        with open(self.lexicon_path) as f:
-            for line in f:
-                word, pronunciation = line.strip().split(self.seperator, 1)
-                word = word.upper()
-                if word not in self.lexicon:
-                    self.lexicon[word] = pronunciation.split(' ')
-                for phone in self.lexicon[word]:
-                    self.phonemic_inventory.add(phone)
-                    if self.already_ipa:
-                        self.phone_to_phoneme[phone] = phone
-
-                for letter in word:
-                    self.graphemic_inventory.add(letter)
-
 class MultiLanguagePronunciationDictionary:
     def __init__(self, pronunciation_dictionaries: List[PronunciationDictionary]):
         self.dictionaries = {x.lang: x for x in pronunciation_dictionaries}
@@ -351,37 +288,3 @@ class MultiLanguagePronunciationDictionary:
     def spelling(self, language:str, word: str) -> List[str]:
         return self.pronunciation_dictionaries[language].spelling(word)
 
-class AudioFile:
-    def __init__(self, filename: str, transcription: str,
-            pronunciation_dictionary: PronunciationDictionary,
-            fileobj: Optional[BinaryIO] = None,
-            wavobj: Optional[Tuple[Tensor, int]] = None,
-            offset: int = 0):
-
-        self.filename = filename
-        self.pronunciation_dictionary = pronunciation_dictionary
-        self.load_audio(fileobj, wavobj)
-
-        self.transcription, self.words = pronunciation_dictionary.spell_sentence(transcription, return_words=True)
-        self.tensor_transcription = torch.tensor([self.pronunciation_dictionary.phonemic_mapping[x] \
-                                                    for x in self.transcription])
-
-        self.offset = offset
-
-    def load_audio(self, fileobj: Optional[BinaryIO] = None, wavobj = None):
-        if fileobj is not None:
-            self.wav, sr = torchaudio.load(fileobj)
-        elif wavobj is not None:
-            self.wav, sr = wavobj
-        else:
-            self.wav, sr = torchaudio.load(self.filename)
-
-        if self.wav.shape[0] != 1:
-            self.wav = torch.mean(self.wav, dim=0).unsqueeze(0)
-
-        if sr != 16000:
-            self.wav = Resample(sr, 16000)(self.wav)
-
-    def move_to_device(self, device:str):
-        self.wav = self.wav.to(device)
-        self.tensor_transcription = self.tensor_transcription.to(device)

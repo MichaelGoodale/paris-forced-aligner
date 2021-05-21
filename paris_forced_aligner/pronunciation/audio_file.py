@@ -1,0 +1,42 @@
+from typing import Union, BinaryIO, Optional, Mapping, List, Set, Tuple
+
+import torch
+from torch import Tensor
+from torchaudio.transforms import Resample
+
+from paris_forced_aligner.pronunciation import PronunciationDictionary
+
+class AudioFile:
+    def __init__(self, filename: str, transcription: str,
+            pronunciation_dictionary: PronunciationDictionary,
+            fileobj: Optional[BinaryIO] = None,
+            wavobj: Optional[Tuple[Tensor, int]] = None,
+            offset: int = 0):
+
+        self.filename = filename
+        self.pronunciation_dictionary = pronunciation_dictionary
+        self.load_audio(fileobj, wavobj)
+
+        self.transcription, self.words = pronunciation_dictionary.spell_sentence(transcription, return_words=True)
+        self.tensor_transcription = torch.tensor([self.pronunciation_dictionary.phonemic_mapping[x] \
+                                                    for x in self.transcription])
+
+        self.offset = offset
+
+    def load_audio(self, fileobj: Optional[BinaryIO] = None, wavobj = None):
+        if fileobj is not None:
+            self.wav, sr = torchaudio.load(fileobj)
+        elif wavobj is not None:
+            self.wav, sr = wavobj
+        else:
+            self.wav, sr = torchaudio.load(self.filename)
+
+        if self.wav.shape[0] != 1:
+            self.wav = torch.mean(self.wav, dim=0).unsqueeze(0)
+
+        if sr != 16000:
+            self.wav = Resample(sr, 16000)(self.wav)
+
+    def move_to_device(self, device:str):
+        self.wav = self.wav.to(device)
+        self.tensor_transcription = self.tensor_transcription.to(device)

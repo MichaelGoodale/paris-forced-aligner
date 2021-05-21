@@ -8,7 +8,7 @@ from paris_forced_aligner.scripts.utils import process_model_args, add_model_arg
 
 from paris_forced_aligner.inference import ForcedAligner
 from paris_forced_aligner.corpus import BuckeyeCorpus
-from paris_forced_aligner.audio_data import AudioFile, LibrispeechDictionary
+from paris_forced_aligner.pronunciation import AudioFile, LibrispeechDictionary
 
 def evaluate():
     parser = argparse.ArgumentParser(description='Train forced aligner')
