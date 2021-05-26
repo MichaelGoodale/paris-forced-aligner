@@ -67,12 +67,11 @@ class KabyleDictionary(PronunciationDictionary):
     def load_lexicon(self):
         '''Since orthography is entirely transparent; we're not loading a lexiocon,
         just the phonemic/graphemic inventories'''
-        vowels = ["a","æ","ɪ","ʊ","ə"]
-        consonants = ["b", "bʷ", "β", "m", "f", "t̪", "d̪", "θ", "ð", "n", "r", "l", "tˤ", "ðˤ", \
-                "rˤ", "lˤ", "ts", "dz", "s", "z", "sˤ", "zˤ", "tʃ", "dʒ", "ʃ", "ʒ", "ʃˤ", "ʒˤ", \
-                "ç", "çᶣ", "ʝ", "ʝᶣ", "j", "k", "g", "kʷ", "ɡʷ", "w", "q", "ɢ", "χ", "ʁ", "qʷ", \
-                "χʷ", "ʁʷ", "ħ", "ʕ", "h"]
-        self.phonemic_inventory = set(vowels+consonants)
+        self.phonemic_inventory = set(x for _, x in KabyleDictionary.ipa_mapping.items())
+        self.phonemic_inventory.update('bdgkt')
+        for phone in list(self.phonemic_inventory):
+            if phone not in ['æ', 'ɪ', 'ʊ', 'ə', 'ts', 'dz']:
+                self.phonemic_inventory.add(f'{phone}ː')
         self.graphemic_inventory = set("abcčdḍeɛfgǧɣhḥijklmnqrṛsṣtṭuwxyzẓε")
 
     def mark_assimilation(self, string: str) -> str:
