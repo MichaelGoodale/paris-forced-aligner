@@ -102,7 +102,7 @@ class KabyleDictionary(PronunciationDictionary):
 
     def geminate(self, string: str) -> str:
         '''Replace repeated consonants as upper case to mark as a geminate'''
-        return re.sub(r'(\w)\1', lambda x: x.group(1).upper(), string)
+        return re.sub(r'([^\Waeiu_])\1', lambda x: x.group(1).upper(), string)
 
     def degeminate(self, string: str) -> str:
         '''Replace repeated consonants as upper case to mark as a geminate'''
