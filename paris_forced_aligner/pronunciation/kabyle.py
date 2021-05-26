@@ -61,6 +61,8 @@ class KabyleDictionary(PronunciationDictionary):
             'ẓ': 'zˤ',
             'ɛ': 'ʕ', #<- Unicode shenanigans
             'ε': 'ʕ'}
+
+
     def __init__(self):
         super().__init__(use_G2P=False)
 
@@ -68,9 +70,9 @@ class KabyleDictionary(PronunciationDictionary):
         '''Since orthography is entirely transparent; we're not loading a lexiocon,
         just the phonemic/graphemic inventories'''
         self.phonemic_inventory = set(x for _, x in KabyleDictionary.ipa_mapping.items())
-        self.phonemic_inventory.update('bdgkt')
+        self.phonemic_inventory.update(['b', 'g', 'k', 'ts', 'dz', 'β', 'd̪', 'ð', 'ʝ', 'ç', 't̪', 'θ'])
         for phone in list(self.phonemic_inventory):
-            if phone not in ['æ', 'ɪ', 'ʊ', 'ə', 'ts', 'dz']:
+            if phone not in ['æ', 'ɪ', 'ʊ', 'ə', 'ts', 'dz', 'ts', 'dz', 'β', 'd̪', 'ð', 'ʝ', 'ç', 't̪', 'θ']:
                 self.phonemic_inventory.add(f'{phone}ː')
         self.graphemic_inventory = set("abcčdḍeɛfgǧɣhḥijklmnqrṛsṣtṭuwxyzẓε")
 
@@ -190,7 +192,7 @@ class KabyleDictionary(PronunciationDictionary):
         for word in sentence:
             word = self.assimilate(word)
             word = self.turn_into_ipa(word)
-            spelling.append(word)
+            spelling += word
         sentence = [self.degeminate(word) for word in sentence]
 
         if return_words:
