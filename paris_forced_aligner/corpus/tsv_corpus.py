@@ -9,7 +9,7 @@ class TSVCorpus(CorpusClass):
     def __init__(self, corpus_path: str, pronunciation_dictionary: PronunciationDictionary = None, delimiter='\t', path_prefix=''):
         super().__init__(corpus_path, pronunciation_dictionary)
         self.all_files = []
-        with open(corpus) as f:
+        with open(corpus_path) as f:
             csv_file = csv.DictReader(f, delimiter=delimiter)
             for row in csv_file:
                 self.all_files.append((os.path.join(path_prefix, row['path']), row['sentence']))
