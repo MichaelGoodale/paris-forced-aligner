@@ -2,6 +2,7 @@ from typing import Union, BinaryIO, Optional, Mapping, List, Set, Tuple
 
 import torch
 from torch import Tensor
+import torchaudio 
 from torchaudio.transforms import Resample
 
 from paris_forced_aligner.pronunciation import PronunciationDictionary
