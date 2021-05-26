@@ -6,7 +6,7 @@ from torch import nn
 import torch.nn.functional as F
 from transformers import Wav2Vec2Processor, Wav2Vec2Model
 
-from ipa_data import VOCAB_SIZES
+from .ipa_data import VOCAB_SIZES
 
 # Source: https://pytorch.org/tutorials/beginner/transformer_tutorial
 class PositionalEncoding(nn.Module):
