@@ -259,6 +259,9 @@ for length in ['', 'ː']:
                 ipa_to_feature_vector(character+length)
             else:
                 ipa_to_feature_vector(character+second+length)
+    CHAR2VEC['w'+length] = CHAR2VEC['ɰʷ'+length]
+    VEC2CHAR[CHAR2VEC['w'+length]] = 'w'+length
+
 CHAR2IDX = {k: i for i, k in enumerate(sorted(CHAR2VEC.keys()))}
 IDX2CHAR = {i: k for k, i in CHAR2IDX.items()}
 
