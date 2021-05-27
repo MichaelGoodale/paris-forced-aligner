@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from paris_forced_aligner.corpus import LibrispeechCorpus, CorpusClass
 from paris_forced_aligner.model import PhonemeDetector
 from paris_forced_aligner.inference import ForcedAligner
+from paris_forced_aligner.ipa_data import multilabel_ctc_log_prob
 
 class Trainer:
 
@@ -160,9 +161,7 @@ class Trainer:
             return self.loss_fn(X, transcriptions_mat) / self.accumulate_steps
         # CTC Loss 
         if self.model.multilingual:
-            pass
-            # CONVERT FROM IPA CHAR to FEATURE VEC
-            # CONVERT FROM FEATURE VEC to COMBINED 
+            X = multilabel_ctc_log_prob(X, device=self.device)
         return self.loss_fn(X, transcriptions, X_lengths, transcription_lengths) / self.accumulate_steps
 
     def update_progress_bar(self, prefix_string, postfix_stats):

@@ -1,6 +1,7 @@
 import re
 from typing import Optional, Mapping, List
 
+from paris_forced_aligner import ipa_data
 from paris_forced_aligner.pronunciation import PronunciationDictionary, OutOfVocabularyException
 
 
@@ -63,17 +64,21 @@ class KabyleDictionary(PronunciationDictionary):
             'ε': 'ʕ'}
 
 
-    def __init__(self):
+    def __init__(self, multilingual=False):
         super().__init__(use_G2P=False)
+        self.multilingual = multilingual
 
     def load_lexicon(self):
         '''Since orthography is entirely transparent; we're not loading a lexiocon,
         just the phonemic/graphemic inventories'''
-        self.phonemic_inventory = set(x for _, x in KabyleDictionary.ipa_mapping.items())
-        self.phonemic_inventory.update(['b', 'g', 'k', 'ts', 'dz', 'β', 'd̪', 'ð', 'ʝ', 'ç', 't̪', 'θ'])
-        for phone in list(self.phonemic_inventory):
-            if phone not in ['æ', 'ɪ', 'ʊ', 'ə', 'ts', 'dz', 'ts', 'dz', 'β', 'd̪', 'ð', 'ʝ', 'ç', 't̪', 'θ']:
-                self.phonemic_inventory.add(f'{phone}ː')
+        if self.multilingual:
+            self.phonemic_inventory = set(ipa_data.CHAR2IDX.keys())
+        else:
+            self.phonemic_inventory = set(x for _, x in KabyleDictionary.ipa_mapping.items())
+            self.phonemic_inventory.update(['b', 'g', 'k', 'ts', 'dz', 'β', 'd̪', 'ð', 'ʝ', 'ç', 't̪', 'θ'])
+            for phone in list(self.phonemic_inventory):
+                if phone not in ['æ', 'ɪ', 'ʊ', 'ə', 'ts', 'dz', 'ts', 'dz', 'β', 'd̪', 'ð', 'ʝ', 'ç', 't̪', 'θ']:
+                    self.phonemic_inventory.add(f'{phone}ː')
         self.graphemic_inventory = set("abcčdḍeɛfgǧɣhḥijklmnqrṛsṣtṭuwxyzẓε")
 
     def mark_assimilation(self, string: str) -> str:
