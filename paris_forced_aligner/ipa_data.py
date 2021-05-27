@@ -280,7 +280,7 @@ def multilabel_ctc_log_prob(c: Dict[str, Tensor], device='cpu') -> Tensor:
         char_probs = [] 
         for i, feature in enumerate(ORDERING):
             component_prob = c[feature][:, :, vec[i]]
-            if vec[i] == 1 and feature in BLANKLESS_FEATURES: #(component blank):
+            if vec[i] == 1 and feature not in BLANKLESS_FEATURES: #(component blank):
                 component_prob = 0*component_prob
             char_probs.append(component_prob)
         char_probs = torch.stack(char_probs, dim=0)
