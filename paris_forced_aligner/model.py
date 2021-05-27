@@ -107,8 +107,8 @@ class PhonemeDetector(nn.Module):
             fc_input_size = internal_vector_size
 
         if self.multilingual:
-            self.fcs = {k: nn.Linear(fc_input_size, v) for \
-                    k, v in VOCAB_SIZES.items()}
+            self.fcs = nn.ModuleDict({k: nn.Linear(fc_input_size, v) for \
+                    k, v in VOCAB_SIZES.items()})
         else:
             self.fc = nn.Linear(fc_input_size, vocab_size)
 
