@@ -92,7 +92,7 @@ VOCAB_SIZES = {"consonant_places": len(CONSONANT_PLACES)+2,
         "vowel_backness": len(VOWEL_BACKNESS) + 2,
         "vowel_round": len(VOWEL_ROUND) + 2,
         "length": len(LENGTH)+1}
-
+BLANKLESS_FEATURES = ["length", "voicing", "consonant_vowel"]
 CHARACTER_MAPPINGS = {
         "m": ("bilabial", "nasal", 0, "consonant", "voiced", 0, 0, 0),
         "p": ("bilabial", "plosive", 0, "consonant", "unvoiced", 0, 0, 0),
@@ -280,7 +280,7 @@ def multilabel_ctc_log_prob(c: Dict[str, Tensor], device='cpu') -> Tensor:
         char_probs = [] 
         for i, feature in enumerate(ORDERING):
             component_prob = c[feature][:, :, vec[i]]
-            if vec[i] == 1: #(component blank):
+            if vec[i] == 1 and feature in BLANKLESS_FEATURES: #(component blank):
                 component_prob = 0*component_prob
             char_probs.append(component_prob)
         char_probs = torch.stack(char_probs, dim=0)
