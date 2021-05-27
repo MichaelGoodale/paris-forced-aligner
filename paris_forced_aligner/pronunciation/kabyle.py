@@ -65,8 +65,8 @@ class KabyleDictionary(PronunciationDictionary):
 
 
     def __init__(self, multilingual=False):
-        super().__init__(use_G2P=False)
         self.multilingual = multilingual
+        super().__init__(use_G2P=False)
 
     def load_lexicon(self):
         '''Since orthography is entirely transparent; we're not loading a lexiocon,
