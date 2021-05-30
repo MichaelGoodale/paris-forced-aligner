@@ -5,6 +5,7 @@ import torch
 from paris_forced_aligner.model import PhonemeDetector
 from paris_forced_aligner.pronunciation import AudioFile, PronunciationDictionary
 from paris_forced_aligner.phonological import Utterance, Phone, Word, Silence
+import paris_forced_aligner.ipa_data as ipa_data
 
 
 def join_word_phones(word: List[Phone]) -> List[Phone]:
@@ -142,6 +143,8 @@ class ForcedAligner:
     def align_file(self, audio: AudioFile):
         X = self.ensemble_inference(audio, 1)
         y = audio.tensor_transcription
+        if self.model.multilingual:
+            X = ipa_data.multilabel_ctc_log_prob(X)
         inference = self.align_tensors(audio.words, X, y, audio.pronunciation_dictionary, audio.wav.shape[1], audio.offset)
         return self.to_utterance(inference, audio.words, audio.wav.shape[1], audio.pronunciation_dictionary)
 
