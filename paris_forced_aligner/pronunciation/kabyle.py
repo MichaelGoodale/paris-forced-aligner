@@ -170,9 +170,11 @@ class KabyleDictionary(PronunciationDictionary):
                 ipa_char = self.make_occlusive(char, prev_char)
             elif char.isupper():
                 non_geminated_char = char.lower()
-                if non_geminated_char == 't':
-                    ipa_char = 'ts'
-                elif non_geminated_char in 'bdgk':
+                if non_geminated_char == 'ḍ':
+                    ipa_char = 'ṭː'
+                elif non_geminated_char == 'y':
+                    ipa_char = 'gː'
+                elif non_geminated_char in 'btdgk':
                     ipa_char = non_geminated_char + 'ː'
                 else:
                     ipa_char = KabyleDictionary.ipa_mapping[non_geminated_char] + 'ː'
