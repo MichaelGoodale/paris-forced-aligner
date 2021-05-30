@@ -171,7 +171,7 @@ class KabyleDictionary(PronunciationDictionary):
             elif char.isupper():
                 non_geminated_char = char.lower()
                 if non_geminated_char == 'ḍ':
-                    ipa_char = 'ṭː'
+                    ipa_char = 'tˤː'
                 elif non_geminated_char == 'y':
                     ipa_char = 'gː'
                 elif non_geminated_char in 'btdgk':
