@@ -172,9 +172,7 @@ class KabyleDictionary(PronunciationDictionary):
                 non_geminated_char = char.lower()
                 if non_geminated_char == 't':
                     ipa_char = 'ts'
-                elif non_geminated_char == 'd':
-                    ipa_char = 'dz'
-                elif non_geminated_char in 'bgk':
+                elif non_geminated_char in 'bdgk':
                     ipa_char = non_geminated_char + 'ː'
                 else:
                     ipa_char = KabyleDictionary.ipa_mapping[non_geminated_char] + 'ː'
