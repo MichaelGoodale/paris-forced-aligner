@@ -214,7 +214,7 @@ CHARACTER_MAPPINGS = {
 VECTOR_MAPPINGS = {v: k for k, v in CHARACTER_MAPPINGS.items()}
 IDX_ORDERED = (CONSONANT_PLACES_IDX, CONSONANT_MANNERS_IDX, VOICING_IDX, VOWEL_HEIGHT_IDX, VOWEL_BACKNESS_IDX, VOWEL_ROUND_IDX, CONSONANT_SECOND_IDX, LENGTH_IDX)
 ORDERING = ["consonant_vowel", "consonant_places", "consonant_manners", "voicing", "vowel_height", "vowel_backness", "vowel_round", "consonant_second", "length"]
-SECOND_MAPPER = {"oral": '', "labialized":'ˤ', "pharyngealized": 'ˤ', "palatalized": 'ʲ'}
+SECOND_MAPPER = {"oral": '', "labialized":'ʷ', "pharyngealized": 'ˤ', "palatalized": 'ʲ'}
 LENGTH_MAPPER = {"long": 'ː', "short": ''}
 IDX2CHAR = {}
 CHAR2IDX = {}
@@ -251,7 +251,7 @@ def vector_generator():
                             CHAR2IDX[IDX2CHAR[vector_idx]] = vector_idx
                         yield vector_idx, (0, None, None, voicing_idx, height_idx, back_idx, vowel_round_idx, None, length_idx)
                         vector_idx += 1
-
+IDX2CHAR['w'] = CHAR2IDX["ɰʷ"] 
 VECTORS = [(idx, vec) for idx, vec in vector_generator()]
 VOCAB_SIZE = len(VECTORS) + 1
 
