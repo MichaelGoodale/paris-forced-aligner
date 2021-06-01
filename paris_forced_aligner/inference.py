@@ -18,8 +18,8 @@ def join_word_phones(word: List[Phone]) -> List[Phone]:
 
 def words_to_indices(words: List[str], pron_dict: PronunciationDictionary) -> List[List[int]]:
     indices = []
-    for word in words:
-        indices.append([pron_dict.phonemic_mapping[x] for x in pron_dict.spelling(word)])
+    for word, word_spelling in words:
+        indices.append([pron_dict.phonemic_mapping[x] for x in word_spelling])
     return indices
 
 class ForcedAligner:
@@ -38,10 +38,7 @@ class ForcedAligner:
             #Shouldn't technically be based only on prob but likelihood is small of collisions
             candidates = {}
             for score, transcription, states, in_word, word_idx, char_idx in beams:
-
-
                 p_blank = X[t, 0, 0].item() 
-
                 if not (not in_word and word_idx >= len(indices)): #If we haven't had a blank after the very last char
                     current_state = transcription[0].item()
                     p_current_state = X[t, 0, current_state].item()
@@ -102,15 +99,15 @@ class ForcedAligner:
         current_word = []
         for i, (phone, start, end) in enumerate(inference):
             current_word.append(Phone(phone, start, end))
-            if pron_dict.spelling(words[word_idx]) == [x.label for x in current_word]:
+            if words[word_idx][1] == [x.label for x in current_word]:
                 current_word = join_word_phones(current_word) 
-                utterance.append(Word(current_word, words[word_idx]))
+                utterance.append(Word(current_word, words[word_idx][0]))
                 word_idx += 1
                 current_word = []
 
         if current_word != []:
             current_word = join_word_phones(current_word) 
-            utterance.append(Word(current_word, words[word_idx]))
+            utterance.append(Word(current_word, words[word_idx][0]))
 
         return Utterance(utterance)
 

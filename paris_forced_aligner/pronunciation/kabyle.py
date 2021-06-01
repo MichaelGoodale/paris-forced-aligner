@@ -197,9 +197,9 @@ class KabyleDictionary(PronunciationDictionary):
         for word in sentence:
             word = self.assimilate(word)
             word = self.turn_into_ipa(word)
-            spelling += word
-        sentence = [self.degeminate(word) for word in sentence]
-
+            spelling.append(word)
+        sentence = [(self.degeminate(word), word_spelling) for word, word_spelling in zip(sentence, spelling)]
+        spelling = [phone for word in spelling for phone in word]
         if return_words:
             return spelling, sentence
         return spelling
