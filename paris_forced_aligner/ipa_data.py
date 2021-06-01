@@ -1,6 +1,7 @@
 from typing import Tuple, Dict
 
 import torch 
+import numpy as np
 from torch import Tensor
 
 arpabet_to_ipa = {
@@ -218,6 +219,7 @@ SECOND_MAPPER = {"oral": '', "labialized":'ʷ', "pharyngealized": 'ˤ', "palatal
 LENGTH_MAPPER = {"long": 'ː', "short": ''}
 IDX2CHAR = {}
 CHAR2IDX = {}
+
 def vector_generator():
     vector_idx = 1
     for place, place_idx in CONSONANT_PLACES_IDX.items():
@@ -251,12 +253,22 @@ def vector_generator():
                             CHAR2IDX[IDX2CHAR[vector_idx]] = vector_idx
                         yield vector_idx, (0, None, None, voicing_idx, height_idx, back_idx, vowel_round_idx, None, length_idx)
                         vector_idx += 1
+
 VECTORS = [(idx, vec) for idx, vec in vector_generator()]
+COLUMNS = {k: [-1] for k in ORDERING}
+
+for i, vec in VECTORS:
+    for v, feature in enumerate(ORDERING):
+        COLUMNS[feature].append(vec[v] if vec[v] is not None else -1)
+
+for k in COLUMNS:
+    COLUMNS[k] = np.array(COLUMNS[k])
+
 CHAR2IDX['w'] = CHAR2IDX["ɰʷ"] 
 CHAR2IDX['wː'] = CHAR2IDX["ɰʷː"] 
 VOCAB_SIZE = len(VECTORS) + 1
 
-def multilabel_ctc_log_prob(c: Dict[str, Tensor], device='cpu') -> Tensor:
+def old_multilabel_ctc_log_prob(c, device='cpu'):
     ''' Takes a dict (see PhonemeDetector) which maps phonological features to their probabilities,
     return logprob usable by CTC'''
     samples_len = c["length"].shape[0]
@@ -271,4 +283,17 @@ def multilabel_ctc_log_prob(c: Dict[str, Tensor], device='cpu') -> Tensor:
                 char_probs.append(component_prob)
         char_probs = torch.stack(char_probs, dim=0)
         return_vector[:, :, char_idx] = torch.sum(char_probs, dim=0)
+    return return_vector
+
+def multilabel_ctc_log_prob(c: Dict[str, Tensor], device='cpu') -> Tensor:
+    ''' Takes a dict (see PhonemeDetector) which maps phonological features to their probabilities,
+    return logprob usable by CTC'''
+    samples_len = c["length"].shape[0]
+    batch_size = c["length"].shape[1]
+    return_vector = torch.empty(samples_len, batch_size, VOCAB_SIZE, device=device)
+    return_vector[:, :, 0] = c['blank'][:, :, 0]
+    return_vector[:, :, 1:] = c['blank'][:, :, 1].unsqueeze(-1).expand(samples_len, batch_size, VOCAB_SIZE - 1)
+    for feature, column in COLUMNS.items():
+        for i in range(VOCAB_SIZES[feature]):
+            return_vector[:, :, column == i] += c[feature][:, :, i].unsqueeze(-1)
     return return_vector
