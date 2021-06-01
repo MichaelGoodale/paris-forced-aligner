@@ -251,8 +251,9 @@ def vector_generator():
                             CHAR2IDX[IDX2CHAR[vector_idx]] = vector_idx
                         yield vector_idx, (0, None, None, voicing_idx, height_idx, back_idx, vowel_round_idx, None, length_idx)
                         vector_idx += 1
-IDX2CHAR['w'] = CHAR2IDX["ɰʷ"] 
 VECTORS = [(idx, vec) for idx, vec in vector_generator()]
+IDX2CHAR['w'] = CHAR2IDX["ɰʷ"] 
+IDX2CHAR['wː'] = CHAR2IDX["ɰʷː"] 
 VOCAB_SIZE = len(VECTORS) + 1
 
 def multilabel_ctc_log_prob(c: Dict[str, Tensor], device='cpu') -> Tensor:
