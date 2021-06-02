@@ -220,6 +220,7 @@ IDX2CHAR = {}
 CHAR2IDX = {}
 
 def vector_generator():
+    yield 0, (0, 0, 0, 0, 0, 0, 0, 0, 0)
     vector_idx = 1
     for place, place_idx in CONSONANT_PLACES_IDX.items():
         for manner, manner_idx in CONSONANT_MANNERS_IDX.items():
@@ -254,18 +255,18 @@ def vector_generator():
                             vector_idx += 1
 
 VECTORS = [(idx, vec) for idx, vec in vector_generator()]
-COLUMNS = {k: [-1] for k in ORDERING}
+COLUMNS = {k: [] for k in ORDERING}
 
 for i, vec in VECTORS:
     for v, feature in enumerate(ORDERING):
         COLUMNS[feature].append(vec[v] if vec[v] is not None else -1)
 
 for k in COLUMNS:
-    COLUMNS[k] = np.array(COLUMNS[k] + [-1])
+    COLUMNS[k] = np.array(COLUMNS[k])
 
 CHAR2IDX['w'] = CHAR2IDX["ɰʷ"] 
 CHAR2IDX['wː'] = CHAR2IDX["ɰʷː"] 
-VOCAB_SIZE = len(VECTORS) + 2
+VOCAB_SIZE = len(VECTORS)
 
 def old_multilabel_ctc_log_prob(c, device='cpu'):
     ''' Takes a dict (see PhonemeDetector) which maps phonological features to their probabilities,
@@ -290,9 +291,7 @@ def multilabel_ctc_log_prob(c: Dict[str, Tensor], device='cpu') -> Tensor:
     samples_len = c["length"].shape[0]
     batch_size = c["length"].shape[1]
     return_vector = torch.zeros(samples_len, batch_size, VOCAB_SIZE, device=device)
-    return_vector[:, :, 0] = torch.sum(torch.stack([x[:, :, 0] for _, x in c.items()], dim=0), dim=0)
     for feature, column in COLUMNS.items():
         for i in range(VOCAB_SIZES[feature]):
             return_vector[:, :, column == i] += c[feature][:, :, i].unsqueeze(-1)
-    return_vector[:, :, -1] = torch.log(1-torch.sum(torch.exp(return_vector[:, :, :-1]), dim=-1))
     return return_vector
