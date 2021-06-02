@@ -294,5 +294,5 @@ def multilabel_ctc_log_prob(c: Dict[str, Tensor], device='cpu') -> Tensor:
     for feature, column in COLUMNS.items():
         for i in range(VOCAB_SIZES[feature]):
             return_vector[:, :, column == i] += c[feature][:, :, i].unsqueeze(-1)
-    return_vector[:, :, -1] = torch.log(-torch.expm1(torch.logsumexp(return_vector[:, :, :-1].clone(), dim=-1)))
+    return_vector[:, :, -1] = torch.log(1-torch.sum(torch.exp(return_vector[:, :, :-1]), dim=-1))
     return return_vector
