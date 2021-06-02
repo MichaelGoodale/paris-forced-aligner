@@ -38,7 +38,7 @@ class ForcedAligner:
             #Shouldn't technically be based only on prob but likelihood is small of collisions
             candidates = {}
             for score, transcription, states, in_word, word_idx, char_idx in beams:
-                p_blank = X[t, 0, 0].item() 
+                p_blank = X[t, 0, 0].item() * 100
                 if not (not in_word and word_idx >= len(indices)): #If we haven't had a blank after the very last char
                     current_state = transcription[0].item()
                     p_current_state = X[t, 0, current_state].item()
