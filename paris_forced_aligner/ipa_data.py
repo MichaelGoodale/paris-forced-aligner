@@ -297,4 +297,4 @@ def multilabel_ctc_log_prob(c: Dict[str, Tensor], device='cpu') -> Tensor:
     for feature, column in COLUMNS.items():
         for i in range(VOCAB_SIZES[feature]):
             return_vector[:, :, column == i] += c[feature][:, :, i].unsqueeze(-1)
-    return F.log_softmax(return_vector, dim=-1)
+    return return_vector

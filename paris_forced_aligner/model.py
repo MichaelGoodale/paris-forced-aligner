@@ -125,7 +125,7 @@ class PhonemeDetector(nn.Module):
 
         if self.upscale:
             x = self.upscaler(x.transpose(1, 2))
-            x = x.transpose(1,2)
+            x = F.relu(x.transpose(1,2))
 
         x = x.transpose(0, 1)
 
