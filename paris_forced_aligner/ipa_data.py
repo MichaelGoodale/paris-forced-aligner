@@ -1,6 +1,7 @@
 from typing import Tuple, Dict
 
 import torch 
+import torch.nn.functional as F
 import numpy as np
 from torch import Tensor
 
@@ -296,4 +297,4 @@ def multilabel_ctc_log_prob(c: Dict[str, Tensor], device='cpu') -> Tensor:
     for feature, column in COLUMNS.items():
         for i in range(VOCAB_SIZES[feature]):
             return_vector[:, :, column == i] += c[feature][:, :, i].unsqueeze(-1)
-    return return_vector
+    return F.log_softmax(return_vector, dim=-1)
