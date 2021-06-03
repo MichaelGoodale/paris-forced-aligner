@@ -36,9 +36,6 @@ class AudioFile:
 
         if sr != 16000:
             self.wav = Resample(sr, 16000)(self.wav)
-        old_length = self.wav.shape[-1]
-        self.wav = Vad(16000)(self.wav)
-        self.offset += old_length - self.wav.shape[-1] 
 
     def move_to_device(self, device:str):
         self.wav = self.wav.to(device)
