@@ -109,8 +109,12 @@ class Utterance:
         phones = textgrid.IntervalTier('phones')
         for word in self.words:
             words.add(word.start / 16000, word.end / 16000, word.label)
-            for phone in word.phones:
-                phones.add(phone.start / 16000, phone.end/ 16000, phone.label)
+
+        if word.end < self.duration:
+            words.add(word.end / 16000, self.duration / 16000, '')
+
+        for phone in self.base_units:
+            phones.add(phone.start / 16000, phone.end/ 16000, phone.label)
 
         tg.append(words)
         tg.append(phones)

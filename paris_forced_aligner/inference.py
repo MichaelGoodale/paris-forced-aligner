@@ -38,8 +38,8 @@ class ForcedAligner:
             #Shouldn't technically be based only on prob but likelihood is small of collisions
             candidates = {}
             for score, transcription, states, in_word, word_idx, char_idx in beams:
-                p_blank = X[t, 0, 0].item() * 100
-                if not (not in_word and word_idx >= len(indices)): #If we haven't had a blank after the very last char
+                p_blank = X[t, 0, 0].item() * 20
+                if len(transcription) > 0 and not (not in_word and word_idx >= len(indices)): #If we haven't had a blank after the very last char
                     current_state = transcription[0].item()
                     p_current_state = X[t, 0, current_state].item()
                     candidates[score + p_current_state] = (transcription, states + [current_state], True, word_idx, char_idx)
@@ -58,7 +58,6 @@ class ForcedAligner:
                             candidates[score + p_blank] = (transcription[1:], states + [0], True, word_idx + 1, 0)
                         else:
                             candidates[score + p_blank] = (transcription[1:], states + [0], True, word_idx, char_idx+1)
-
 
                 if not in_word or word_idx >= len(indices) or char_idx == len(indices[word_idx]) - 1:
                     #We can only have a blank in between words.
@@ -89,8 +88,6 @@ class ForcedAligner:
             else:
                 inference[i] = (inference[i][0], inference[i][1], wav_length + offset)
 
-        inference = list(filter(lambda x: x[0] is not None, inference))
-
         return inference
 
     def to_utterance(self, inference: List[Tuple[str, int]], words: List[str], wav_length:int, pron_dict: PronunciationDictionary) -> Utterance:
@@ -98,6 +95,9 @@ class ForcedAligner:
         utterance = []
         current_word = []
         for i, (phone, start, end) in enumerate(inference):
+            if current_word == [] and phone is None:
+                utterance.append(Silence(start, end))
+                continue
             current_word.append(Phone(phone, start, end))
             if words[word_idx][1] == [x.label for x in current_word]:
                 current_word = join_word_phones(current_word) 
