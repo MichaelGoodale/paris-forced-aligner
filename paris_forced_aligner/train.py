@@ -56,7 +56,7 @@ class Trainer:
         if self.corpus.return_gold_labels:
             self.loss_fn = NLLLoss()
         else:
-            self.loss_fn = CTCLoss(zero_infinity=True)
+            self.loss_fn = CTCLoss()
         self.optimizer = torch.optim.Adam(model.parameters(), lr=lr)
         self.memory_max_length = 300000
         self.epoch = 0
@@ -164,7 +164,6 @@ class Trainer:
         # CTC Loss 
         if self.model.multilingual:
             X = multilabel_ctc_log_prob(X, device=self.device)
-
         uniform_distribution = torch.ones(X.shape[0], X.shape[2], device=self.device) / X.shape[-1]
         kl_loss = torch.tensor(0.0, device=self.device)
         for i in range(X.shape[1]):
@@ -274,6 +273,3 @@ class Trainer:
             self.epoch += 1
 
         self.save_checkpoint(step)
-
-
-
