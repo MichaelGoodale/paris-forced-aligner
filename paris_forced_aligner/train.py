@@ -20,6 +20,7 @@ class Trainer:
             corpus: CorpusClass,
             val_corpus: CorpusClass = None,
             pretraining = False,
+            kl_ratio = 0.10,
             output_directory:str = "models",
             batch_size:int = 20,
             lr:float = 3e-5,
@@ -39,6 +40,7 @@ class Trainer:
 
         self.batch_size = batch_size
         self.lr = lr
+        self.kl_ratio = kl_ratio
         self.accumulate_steps = accumulate_steps
         self.thaw_after = thaw_after
 
@@ -162,7 +164,14 @@ class Trainer:
         # CTC Loss 
         if self.model.multilingual:
             X = multilabel_ctc_log_prob(X, device=self.device)
-        return self.loss_fn(X, transcriptions, X_lengths, transcription_lengths) / self.accumulate_steps
+
+        uniform_distribution = torch.ones(X.shape[0], X.shape[2], device=self.device) / X.shape[-1]
+        kl_loss = torch.tensor(0.0, device=self.device)
+        for i in range(X.shape[1]):
+            kl_loss += (F.kl_div(X[:X_lengths[i], i, :], uniform_distribution[:X_lengths[i], :], reduction='batchmean'))
+        kl_loss /= X.shape[1]
+        return ((1-self.kl_ratio) * self.loss_fn(X, transcriptions, X_lengths, transcription_lengths) \
+               + self.kl_ratio * kl_loss) / self.accumulate_steps
 
     def update_progress_bar(self, prefix_string, postfix_stats):
         '''Adds string to current progress bar, and allow it to fail'''
