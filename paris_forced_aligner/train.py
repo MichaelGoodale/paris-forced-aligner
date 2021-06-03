@@ -56,7 +56,7 @@ class Trainer:
         if self.corpus.return_gold_labels:
             self.loss_fn = NLLLoss()
         else:
-            self.loss_fn = CTCLoss()
+            self.loss_fn = CTCLoss(zero_infinity=True)
         self.optimizer = torch.optim.Adam(model.parameters(), lr=lr)
         self.memory_max_length = 300000
         self.epoch = 0

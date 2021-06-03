@@ -290,7 +290,7 @@ def multilabel_ctc_log_prob(c: Dict[str, Tensor], device='cpu') -> Tensor:
     return logprob usable by CTC'''
     samples_len = c["length"].shape[0]
     batch_size = c["length"].shape[1]
-    return_vector = torch.empty(samples_len, batch_size, VOCAB_SIZE, device=device)
+    return_vector = torch.zeros(samples_len, batch_size, VOCAB_SIZE, device=device)
     return_vector[:, :, 0] = c['blank'][:, :, 0]
     return_vector[:, :, 1:] = c['blank'][:, :, 1].unsqueeze(-1).expand(samples_len, batch_size, VOCAB_SIZE - 1)
     for feature, column in COLUMNS.items():
