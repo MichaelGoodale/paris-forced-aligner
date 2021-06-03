@@ -67,24 +67,25 @@ VOWEL_ROUND = ["round", "unround"]
 LENGTH = ["short", "long"]
 
 #idx=0 for blank, idx=1 for when the feature is not relevant
-CONSONANT_PLACES_IDX = {x: i+1 for i, x in enumerate(CONSONANT_PLACES)}
-CONSONANT_MANNERS_IDX = {x: i+1 for i, x in enumerate(CONSONANT_MANNERS)}
-CONSONANT_SECOND_IDX = {x: i+1 for i, x in enumerate(CONSONANT_SECOND)}
-VOICING_IDX = {x: i+1 for i, x in enumerate(VOICING)}
-VOWEL_HEIGHT_IDX = {x: i+1 for i, x in enumerate(VOWEL_HEIGHT)}
-VOWEL_BACKNESS_IDX = {x: i+1 for i, x in enumerate(VOWEL_BACKNESS)}
-VOWEL_ROUND_IDX = {x: i+1 for i, x in enumerate(VOWEL_ROUND)}
-LENGTH_IDX = {x: i+1 for i, x in enumerate(LENGTH)}
+CONSONANT_PLACES_IDX = {x: i for i, x in enumerate(CONSONANT_PLACES)}
+CONSONANT_MANNERS_IDX = {x: i for i, x in enumerate(CONSONANT_MANNERS)}
+CONSONANT_SECOND_IDX = {x: i for i, x in enumerate(CONSONANT_SECOND)}
+VOICING_IDX = {x: i for i, x in enumerate(VOICING)}
+VOWEL_HEIGHT_IDX = {x: i for i, x in enumerate(VOWEL_HEIGHT)}
+VOWEL_BACKNESS_IDX = {x: i for i, x in enumerate(VOWEL_BACKNESS)}
+VOWEL_ROUND_IDX = {x: i for i, x in enumerate(VOWEL_ROUND)}
+LENGTH_IDX = {x: i for i, x in enumerate(LENGTH)}
 
-VOCAB_SIZES = {"consonant_places": len(CONSONANT_PLACES)+1,
-        "consonant_manners": len(CONSONANT_MANNERS)+1,
-        "consonant_second": len(CONSONANT_SECOND)+1,
-        "voicing": len(VOICING)+1,
-        "vowel_height": len(VOWEL_HEIGHT)+1,
-        "vowel_backness": len(VOWEL_BACKNESS)+1,
-        "vowel_round": len(VOWEL_ROUND)+1,
-        "length": len(LENGTH)+1,
-        "consonant_vowel": 3}
+VOCAB_SIZES = {"consonant_places": len(CONSONANT_PLACES),
+        "consonant_manners": len(CONSONANT_MANNERS),
+        "consonant_second": len(CONSONANT_SECOND),
+        "voicing": len(VOICING),
+        "vowel_height": len(VOWEL_HEIGHT),
+        "vowel_backness": len(VOWEL_BACKNESS),
+        "vowel_round": len(VOWEL_ROUND),
+        "length": len(LENGTH),
+        "consonant_vowel": 2,
+        "blank": 2}
 
 CHARACTER_MAPPINGS = {
         "m": ("bilabial", "nasal", "voiced", None, None, None),
@@ -220,7 +221,6 @@ IDX2CHAR = {}
 CHAR2IDX = {}
 
 def vector_generator():
-    yield 0, (0, 0, 0, 0, 0, 0, 0, 0, 0)
     vector_idx = 1
     for place, place_idx in CONSONANT_PLACES_IDX.items():
         for manner, manner_idx in CONSONANT_MANNERS_IDX.items():
@@ -235,8 +235,8 @@ def vector_generator():
                         if base_char is not None:
                             IDX2CHAR[vector_idx] = base_char + SECOND_MAPPER[second] + LENGTH_MAPPER[length]
                             CHAR2IDX[IDX2CHAR[vector_idx]] = vector_idx
-                            yield vector_idx, (2, place_idx, manner_idx, voicing_idx, None, None, None, second_idx, length_idx)
-                            vector_idx += 1
+                        yield vector_idx, (1, place_idx, manner_idx, voicing_idx, None, None, None, second_idx, length_idx)
+                        vector_idx += 1
 
     for height, height_idx in VOWEL_HEIGHT_IDX.items():
         for back, back_idx in VOWEL_BACKNESS_IDX.items():
@@ -251,11 +251,11 @@ def vector_generator():
                         if base_char is not None:
                             IDX2CHAR[vector_idx] = base_char + LENGTH_MAPPER[length]
                             CHAR2IDX[IDX2CHAR[vector_idx]] = vector_idx
-                            yield vector_idx, (1, None, None, voicing_idx, height_idx, back_idx, vowel_round_idx, None, length_idx)
-                            vector_idx += 1
+                        yield vector_idx, (0, None, None, voicing_idx, height_idx, back_idx, vowel_round_idx, None, length_idx)
+                        vector_idx += 1
 
 VECTORS = [(idx, vec) for idx, vec in vector_generator()]
-COLUMNS = {k: [] for k in ORDERING}
+COLUMNS = {k: [-1] for k in ORDERING}
 
 for i, vec in VECTORS:
     for v, feature in enumerate(ORDERING):
@@ -266,7 +266,7 @@ for k in COLUMNS:
 
 CHAR2IDX['w'] = CHAR2IDX["ɰʷ"] 
 CHAR2IDX['wː'] = CHAR2IDX["ɰʷː"] 
-VOCAB_SIZE = len(VECTORS)
+VOCAB_SIZE = len(VECTORS) + 1
 
 def old_multilabel_ctc_log_prob(c, device='cpu'):
     ''' Takes a dict (see PhonemeDetector) which maps phonological features to their probabilities,
@@ -290,7 +290,9 @@ def multilabel_ctc_log_prob(c: Dict[str, Tensor], device='cpu') -> Tensor:
     return logprob usable by CTC'''
     samples_len = c["length"].shape[0]
     batch_size = c["length"].shape[1]
-    return_vector = torch.zeros(samples_len, batch_size, VOCAB_SIZE, device=device)
+    return_vector = torch.empty(samples_len, batch_size, VOCAB_SIZE, device=device)
+    return_vector[:, :, 0] = c['blank'][:, :, 0]
+    return_vector[:, :, 1:] = c['blank'][:, :, 1].unsqueeze(-1).expand(samples_len, batch_size, VOCAB_SIZE - 1)
     for feature, column in COLUMNS.items():
         for i in range(VOCAB_SIZES[feature]):
             return_vector[:, :, column == i] += c[feature][:, :, i].unsqueeze(-1)
