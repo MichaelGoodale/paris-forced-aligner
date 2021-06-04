@@ -164,12 +164,9 @@ class Trainer:
         # CTC Loss 
         if self.model.multilingual:
             X = multilabel_ctc_log_prob(X, device=self.device)
-        uniform_distribution = torch.ones(X.shape[0], X.shape[2], device=self.device) / X.shape[-1]
-        kl_loss = torch.tensor(0.0, device=self.device)
-        for i in range(X.shape[1]):
-            kl_loss += (F.kl_div(X[:X_lengths[i], i, :], uniform_distribution[:X_lengths[i], :], reduction='batchmean'))
-        kl_loss /= X.shape[1]
-        return ((1-self.kl_ratio) * self.loss_fn(X, transcriptions, X_lengths, transcription_lengths) \
+        uniform_distribution = torch.full_like(X, 1. / X.shape[-1], device=self.device)
+        kl_loss = F.kl_div(X, uniform_distribution, reduction='batchmean')
+        return ((1-self.kl_ratio) * self.loss_fn(X, transcriptions, X_lengths, transcription_lengths)
                + self.kl_ratio * kl_loss) / self.accumulate_steps
 
     def update_progress_bar(self, prefix_string, postfix_stats):
