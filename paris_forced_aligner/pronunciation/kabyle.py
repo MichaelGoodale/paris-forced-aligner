@@ -182,7 +182,6 @@ class KabyleDictionary(PronunciationDictionary):
             losses = []
             with tqdm(train_sentences, desc=f"Epoch {epoch+1}/{n_epochs}") as sentences_iterator:
                 for sentence in sentences_iterator:
-                    break
                     try:
                         sentence = self.clean_sentence(sentence)
                     except OutOfVocabularyException:
