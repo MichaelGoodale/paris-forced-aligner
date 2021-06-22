@@ -47,18 +47,20 @@ class PronunciationDictionary:
                                             enumerate(sorted(self.graphemic_inventory))}
 
         self.index_mapping: Mapping[int, str] = {v:k for k, v in self.phonemic_mapping.items()}
+        self.grapheme_index_mapping: Mapping[int, str] = {v:k for k, v in self.graphemic_mapping.items()}
+
         self.use_G2P = use_G2P
 
         if use_G2P:
             self.device = device
             self.grapheme_pad_idx = len(self.graphemic_inventory)
             self.grapheme_oov_idx = len(self.graphemic_inventory) + 1
-            self.grapheme_end_idx = len(self.phonemic_inventory) + 2
+            self.grapheme_end_idx = len(self.graphemic_inventory) + 2
 
             self.phoneme_pad_idx = 0 #Use <SIL> as PAD
             self.phoneme_start_idx = len(self.phonemic_inventory)
             self.phoneme_end_idx = len(self.phonemic_inventory) + 1
-            self.G2P_model = G2PModel(len(self.graphemic_inventory) + 2, len(self.phonemic_inventory) + 2,
+            self.G2P_model = G2PModel(len(self.graphemic_inventory) + 3, len(self.phonemic_inventory) + 2,
                     self.grapheme_pad_idx, self.phoneme_pad_idx).to(device)
             if train_G2P:
                 self.train_params = train_params

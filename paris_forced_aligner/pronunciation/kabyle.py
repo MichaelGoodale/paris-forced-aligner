@@ -1,8 +1,15 @@
 import re
+import csv
+import random
 from typing import Optional, Mapping, List
+
+from jiwer import wer 
+import torch
+from tqdm import tqdm
 
 from paris_forced_aligner import ipa_data
 from paris_forced_aligner.pronunciation import PronunciationDictionary, OutOfVocabularyException
+from paris_forced_aligner.model import G2PModel
 
 
 class KabyleDictionary(PronunciationDictionary):
@@ -64,9 +71,156 @@ class KabyleDictionary(PronunciationDictionary):
             'ε': 'ʕ'}
 
 
-    def __init__(self, multilingual=False):
+    def __init__(self, multilingual=False, text_corpus_path: str=None, use_P2G=False,
+            train_P2G=False, 
+            continue_training=False,
+            P2G_model_path="kab_P2G_model.pt",
+            device: str = 'cpu',
+            train_params = {"n_epochs": 10, "lr": 3e-4, "batch_size":64,}):
+
         self.multilingual = multilingual
-        super().__init__(use_G2P=False)
+        self.text_corpus_path = text_corpus_path
+        super().__init__(use_G2P=False, lang="kab")
+
+        if use_P2G:
+            self.device = device
+            #Confusing terminology in below lets us use G2P helper methods
+            #Should be refactored...
+            self.grapheme_pad_idx = 0
+            self.grapheme_oov_idx = len(self.phonemic_inventory)
+            self.grapheme_end_idx = len(self.phonemic_inventory) + 1
+
+            self.phoneme_pad_idx = len(self.graphemic_inventory) 
+            self.phoneme_start_idx = len(self.graphemic_inventory) + 1
+            self.phoneme_end_idx = len(self.graphemic_inventory) + 2
+
+            self.G2P_model = G2PModel(len(self.phonemic_inventory) + 2, len(self.graphemic_inventory) + 3,
+                    self.grapheme_pad_idx, self.phoneme_pad_idx).to(device)
+
+            if train_P2G:
+                self.train_params = train_params
+                self.cross_loss = torch.nn.NLLLoss()
+                self.optimizer = torch.optim.Adam(self.G2P_model.parameters(), lr=train_params["lr"])
+                starting_epoch = 0
+                if continue_training:
+                    checkpoint = torch.load(P2G_model_path, map_location=self.device)
+                    self.G2P_model.load_state_dict(checkpoint["model_state_dict"])
+                    self.optimizer.load_state_dict(checkpoint["optimizer"])
+                    starting_epoch = checkpoint["epoch"]
+                    self.train_params = checkpoint["train_params"]
+                self.train_P2G_model(P2G_model_path, text_corpus_path, starting_epoch=starting_epoch)
+            else:
+                self.G2P_model.load_state_dict(torch.load(P2G_model_path, map_location=self.device)['model_state_dict'])
+                self.G2P_model.eval()
+
+
+    def get_P2G_accuracy(self, sentences, batch_size):
+        sentence_batch = []
+        pron_batch = []
+        orth_batch = []
+        #Extremely confusing terminology G2P transformer paper where phoneme error rate is WER on phonemes whereas "WER" is just percentage of incorrect words
+        avg_wer = 0
+        n = 0 
+        def run_batch(sentence_batch, pron_batch, orth_batch, avg_wer, n):
+            pron_batch, orth_batch = self.prepare_batches(pron_batch, orth_batch)
+            max_orth_len = int(orth_batch.shape[0] * 1.2)
+            orth_batch = torch.LongTensor([[self.phoneme_start_idx]*len(sentence_batch)]).to(self.device)
+            for _ in range(max_orth_len):
+                y = self.G2P_model(pron_batch, orth_batch, device=self.device)
+                orth_batch = torch.cat((orth_batch, torch.argmax(y[-1, :, :], dim=-1).unsqueeze(0)), dim=0)
+
+            for i, sentence in enumerate(sentence_batch):
+                spelling = []
+                for x in orth_batch[1:, i]:
+                    x = x.item()
+                    if x not in self.grapheme_index_mapping or x == self.phoneme_pad_idx:
+                        break #Since pad_idx is <SIL> it will be in index_mapping
+                    spelling.append(self.grapheme_index_mapping[x])
+                avg_wer += (wer(sentence, spelling) - avg_wer) / (n+1)
+                n += 1
+            return avg_wer, n
+
+        for sentence in tqdm(sentences, desc="Validating..."):
+            if len(sentence_batch) % batch_size == 0 and len(pron_batch) > 0:
+                avg_wer, n = run_batch(sentence_batch, pron_batch, orth_batch, avg_wer, n)
+                sentence_batch = []
+                pron_batch = []
+                orth_batch = []
+            try:
+                sentence = self.clean_sentence(sentence)
+            except OutOfVocabularyException:
+                continue
+            sentence_batch.append(sentence)
+            pron_batch.append([self.phonemic_mapping[p] for p in self.spell_sentence(sentence, return_words=False)])
+            orth_batch.append([self.graphemic_mapping[g] for g in sentence])
+
+        if sentence_batch != []:
+            avg_wer, n = run_batch(sentence_batch, pron_batch, orth_batch, avg_wer, n)
+        return avg_wer
+
+    def train_P2G_model(self, model_path, text_corpus_path, train_test_split=0.98, output_model_every=20, starting_epoch=0):
+        if text_corpus_path is None:
+            raise ValueError("text_corpus_path is none, please provide a corpus path")
+
+        n_epochs = self.train_params['n_epochs']
+        batch_size = self.train_params['batch_size']
+        epoch = starting_epoch
+        sentences = []
+        with open(text_corpus_path) as f:
+            csv_file = csv.DictReader(f, delimiter='\t')
+            for row in csv_file:
+                sentences.append(row['sentence'])
+        rand = random.Random(1337)
+        rand.shuffle(sentences)
+        test_sentences = sentences[int(len(sentences)*train_test_split):]
+        train_sentences = sentences[:int(len(sentences)*train_test_split)]
+
+        while epoch < n_epochs:
+            rand.shuffle(sentences)
+            pron_batch = []
+            orth_batch = []
+            losses = []
+            with tqdm(train_sentences, desc=f"Epoch {epoch+1}/{n_epochs}") as sentences_iterator:
+                for sentence in sentences_iterator:
+                    try:
+                        sentence = self.clean_sentence(sentence)
+                    except OutOfVocabularyException:
+                        continue
+                    pron_batch.append([self.phonemic_mapping[p] for p in self.spell_sentence(sentence, return_words=False)])
+                    orth_batch.append([self.graphemic_mapping[g] for g in sentence])
+                    if len(pron_batch) % batch_size == 0 and len(pron_batch) > 0:
+                        loss = self.teach_model(pron_batch, orth_batch)
+                        orth_batch = []
+                        pron_batch = []
+                        losses.append(loss)
+                        sentences_iterator.set_postfix({"Previous loss": loss})
+
+            if len(pron_batch) > 0:
+                loss = self.teach_model(pron_batch, orth_batch)
+                losses.append(loss)
+
+            with torch.no_grad():
+                wer = self.get_P2G_accuracy(test_sentences, batch_size)
+
+            print(f"Average Loss={sum(losses)/len(losses):.4f}, WER {wer:.4f}")
+
+            epoch += 1
+            if epoch % output_model_every == 0:
+                torch.save({"model_state_dict": self.G2P_model.state_dict(),
+                            "optimizer": self.optimizer.state_dict(),
+                            "loss": sum(losses)/len(losses),
+                            "wer": wer,
+                            "epoch": epoch,
+                            "train_params": self.train_params},
+                        model_path)
+
+        torch.save({"model_state_dict": self.G2P_model.state_dict(),
+                    "optimizer": self.optimizer.state_dict(),
+                    "loss": sum(losses)/len(losses),
+                    "wer": wer,
+                    "epoch": epoch,
+                    "train_params": self.train_params},
+                model_path)
 
     def load_lexicon(self):
         '''Since orthography is entirely transparent; we're not loading a lexiocon,
@@ -79,7 +233,8 @@ class KabyleDictionary(PronunciationDictionary):
             for phone in list(self.phonemic_inventory):
                 if phone not in ['æ', 'ɪ', 'ʊ', 'ə', 'ts', 'dz', 'ts', 'dz', 'β', 'd̪', 'ð', 'ʝ', 'ç', 't̪', 'θ']:
                     self.phonemic_inventory.add(f'{phone}ː')
-        self.graphemic_inventory = set("abcčdḍeɛfgǧɣhḥijklmnqrṛsṣtṭuwxyzẓε")
+        self.letter_inventory = set("abcčdḍeɛfgǧɣhḥijklmnqrṛsṣtṭuwxyzẓε")
+        self.graphemic_inventory = set(" -").union(self.letter_inventory)
 
     def mark_assimilation(self, string: str) -> str:
         ''' Takes a string and returns a string where all
@@ -113,7 +268,7 @@ class KabyleDictionary(PronunciationDictionary):
 
     def degeminate(self, string: str) -> str:
         '''Replace repeated consonants as upper case to mark as a geminate'''
-        all_letters = "".join(self.graphemic_inventory).upper()
+        all_letters = "".join(self.letter_inventory).upper()
         string = re.sub(f'([{all_letters}]-)', lambda x: (x.group(1).lower()*2)[:-1], string)
         return re.sub(f'([{all_letters}])', lambda x: x.group(1).lower()*2, string)
 
@@ -186,13 +341,17 @@ class KabyleDictionary(PronunciationDictionary):
             pronunciation.append(ipa_char)
             prev_char = char
         return pronunciation 
-        
-    def spell_sentence(self, sentence: str, return_words: bool = True):
+
+    def clean_sentence(self, sentence: str) -> str:
         sentence = sentence.lower().strip()
         sentence = re.sub(r'[\.\?\!,:;\'\"«»]', '', sentence)
         for char in sentence:
-            if char not in ' -' and char not in self.graphemic_inventory:
+            if char not in ' -' and char not in self.letter_inventory:
                 raise OutOfVocabularyException("Missing symbol {} due to probable loan word in sentence {}".format(char, sentence))
+        return sentence
+        
+    def spell_sentence(self, sentence: str, return_words: bool = True):
+        sentence = self.clean_sentence(sentence)
         spelling: List[str] = []
         sentence = self.geminate(sentence)
         sentence = self.mark_assimilation(sentence)
