@@ -120,8 +120,9 @@ class KabyleDictionary(PronunciationDictionary):
         orth_batch = []
         #Extremely confusing terminology G2P transformer paper where phoneme error rate is WER on phonemes whereas "WER" is just percentage of incorrect words
         avg_wer = 0
+        avg_per = 0
         n = 0 
-        def run_batch(sentence_batch, pron_batch, orth_batch, avg_wer, n):
+        def run_batch(sentence_batch, pron_batch, orth_batch, avg_wer, avg_per, n):
             pron_batch, orth_batch = self.prepare_batches(pron_batch, orth_batch)
             max_orth_len = int(orth_batch.shape[0] * 1.2)
             orth_batch = torch.LongTensor([[self.phoneme_start_idx]*len(sentence_batch)]).to(self.device)
@@ -137,12 +138,13 @@ class KabyleDictionary(PronunciationDictionary):
                         break #Since pad_idx is <SIL> it will be in index_mapping
                     spelling += self.grapheme_index_mapping[x]
                 avg_wer += (wer(sentence, spelling) - avg_wer) / (n+1)
+                avg_per += (wer(list(sentence), list(spelling)) - avg_per) / (n+1)
                 n += 1
-            return avg_wer, n
+            return avg_wer, avg_per, n
 
         for sentence in tqdm(sentences, desc="Validating..."):
             if len(sentence_batch) % batch_size == 0 and len(pron_batch) > 0:
-                avg_wer, n = run_batch(sentence_batch, pron_batch, orth_batch, avg_wer, n)
+                avg_wer, avg_per, n = run_batch(sentence_batch, pron_batch, orth_batch, avg_wer, avg_per, n)
                 sentence_batch = []
                 pron_batch = []
                 orth_batch = []
@@ -155,8 +157,8 @@ class KabyleDictionary(PronunciationDictionary):
             orth_batch.append([self.graphemic_mapping[g] for g in sentence])
 
         if sentence_batch != []:
-            avg_wer, n = run_batch(sentence_batch, pron_batch, orth_batch, avg_wer, n)
-        return avg_wer
+            avg_wer, avg_per, n = run_batch(sentence_batch, pron_batch, orth_batch, avg_wer, avg_per, n)
+        return avg_wer, avg_per
 
     def train_P2G_model(self, model_path, text_corpus_path, train_test_split=0.98, output_model_every=20, starting_epoch=0):
         if text_corpus_path is None:
@@ -200,9 +202,9 @@ class KabyleDictionary(PronunciationDictionary):
                 losses.append(loss)
 
             with torch.no_grad():
-                wer = self.get_P2G_accuracy(test_sentences, batch_size)
+                wer, per = self.get_P2G_accuracy(test_sentences, batch_size)
 
-            print(f"Average Loss={sum(losses)/len(losses):.4f}, WER {wer:.4f}")
+            print(f"Average Loss={sum(losses)/len(losses):.4f}, WER {wer:.4f}, PER {per:.4f}")
 
             epoch += 1
             if epoch % output_model_every == 0:
