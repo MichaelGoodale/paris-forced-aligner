@@ -130,12 +130,12 @@ class KabyleDictionary(PronunciationDictionary):
                 orth_batch = torch.cat((orth_batch, torch.argmax(y[-1, :, :], dim=-1).unsqueeze(0)), dim=0)
 
             for i, sentence in enumerate(sentence_batch):
-                spelling = []
+                spelling = ""
                 for x in orth_batch[1:, i]:
                     x = x.item()
                     if x not in self.grapheme_index_mapping or x == self.phoneme_pad_idx:
                         break #Since pad_idx is <SIL> it will be in index_mapping
-                    spelling.append(self.grapheme_index_mapping[x])
+                    spelling += self.grapheme_index_mapping[x]
                 avg_wer += (wer(sentence, spelling) - avg_wer) / (n+1)
                 n += 1
             return avg_wer, n
@@ -182,6 +182,7 @@ class KabyleDictionary(PronunciationDictionary):
             losses = []
             with tqdm(train_sentences, desc=f"Epoch {epoch+1}/{n_epochs}") as sentences_iterator:
                 for sentence in sentences_iterator:
+                    break
                     try:
                         sentence = self.clean_sentence(sentence)
                     except OutOfVocabularyException:
