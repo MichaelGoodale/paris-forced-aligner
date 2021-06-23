@@ -72,12 +72,13 @@ class KabyleDictionary(PronunciationDictionary):
 
 
     def __init__(self, multilingual=False, text_corpus_path: str=None, use_P2G=False,
+            no_e = False,
             train_P2G=False, 
             continue_training=False,
             P2G_model_path="kab_P2G_model.pt",
             device: str = 'cpu',
             train_params = {"n_epochs": 10, "lr": 3e-4, "batch_size":64,}):
-
+        self.no_e = True
         self.multilingual = multilingual
         self.text_corpus_path = text_corpus_path
         super().__init__(use_G2P=False, lang="kab")
@@ -355,6 +356,8 @@ class KabyleDictionary(PronunciationDictionary):
     def spell_sentence(self, sentence: str, return_words: bool = True):
         sentence = self.clean_sentence(sentence)
         spelling: List[str] = []
+        if self.no_e:
+            sentence = sentence.replace('e', '')
         sentence = self.geminate(sentence)
         sentence = self.mark_assimilation(sentence)
         sentence = self.split_assimilate(sentence)
